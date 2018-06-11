@@ -1,0 +1,54 @@
+---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}-celeryrunner
+  labels:
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    app: {{ template "name" . }}-celeryrunner
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.celeryrunner.deployment.replicas }}
+  selector:
+    matchLabels:
+      app: {{ template "name" . }}-celeryrunner
+      heritage: {{ .Release.Service }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "name" . }}-celeryrunner
+        heritage: {{ .Release.Service }}
+        release: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ print .Values.global_config | sha256sum }}
+    spec:
+      volumes:
+      - name: secret-volume
+        secret:
+          secretName: {{ required "secrets::file_secret_name is requred" .Values.secrets.file_secret_name }}
+          defaultMode: 256
+      securityContext:
+        fsGroup: 2000
+      containers:
+      - name: {{ template "name" . }}-celeryrunner
+        image: {{ required "A valid image must be specified!" .Values.celeryrunner.deployment.container.image }}:{{ .Chart.AppVersion }}
+        imagePullPolicy: Always
+        env:
+        - name: ZCONNECT_COMPONENT
+          value: "celery-runner"
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-{{ .Values.global_config.name }}
+        volumeMounts:
+        - name: secret-volume
+          readOnly: true
+          mountPath: /secrets
+{{- if .Values.celeryrunner.deployment.container.command }}
+        command:
+{{ .Values.celeryrunner.deployment.container.command | toYaml | indent 10 }}
+{{- end }}
+
+        resources:
+{{ toYaml .Values.celeryrunner.deployment.resources | indent 10 }}

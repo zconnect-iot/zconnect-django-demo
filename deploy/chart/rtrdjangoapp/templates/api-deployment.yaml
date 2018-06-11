@@ -1,0 +1,64 @@
+---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}-api
+  labels:
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    app: {{ template "name" . }}-api
+    component: {{ .Values.api.service.name }}
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.api.deployment.replicas }}
+  selector:
+    matchLabels:
+      app: {{ template "name" . }}-api
+      release: {{ .Release.Name }}
+      heritage: {{ .Release.Service }}
+  template:
+    metadata:
+      labels:
+        # component: {{ .Values.api.service.name }}
+        app: {{ template "name" . }}-api
+        heritage: {{ .Release.Service }}
+        release: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ print .Values.global_config | sha256sum }}
+    spec:
+      volumes:
+      - name: secret-volume
+        secret:
+          secretName: {{ required "secrets::file_secret_name is requred" .Values.secrets.file_secret_name }}
+          defaultMode: 256
+      securityContext:
+        fsGroup: 2000
+      containers:
+      - name: {{ template "name" . }}-api
+        image: {{ required "A valid image must be specified!" .Values.api.deployment.container.image }}:{{ .Chart.AppVersion }}
+        imagePullPolicy: Always
+        env:
+        - name: ZCONNECT_COMPONENT
+          value: "api-server"
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-{{ .Values.global_config.name }}
+        volumeMounts:
+        - name: secret-volume
+          readOnly: true
+          mountPath: /secrets
+        ports:
+        - name: server-port
+          containerPort: !!int {{ .Values.api.service.port }}
+        readinessProbe:
+          tcpSocket:
+            port: 8981
+          initialDelaySeconds: 10
+          periodSeconds: 10
+{{- if .Values.api.deployment.container.command }}
+        command:
+{{ .Values.api.deployment.container.command | toYaml | indent 10 }}
+{{- end }}
+
+        resources:
+{{ toYaml .Values.api.deployment.resources | indent 10 }}

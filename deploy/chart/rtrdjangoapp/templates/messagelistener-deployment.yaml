@@ -1,0 +1,59 @@
+---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}-messagelistener
+  labels:
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+    app: {{ template "name" . }}-messagelistener
+    heritage: {{ .Release.Service }}
+    release: {{ .Release.Name }}
+spec:
+  replicas: !!int {{ default "1" .Values.messagelistener.deployment.replicas }}
+  selector:
+    matchLabels:
+      app: {{ template "name" . }}-messagelistener
+      heritage: {{ .Release.Service }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "name" . }}-messagelistener
+        heritage: {{ .Release.Service }}
+        release: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ print .Values.global_config | sha256sum }}
+    spec:
+      volumes:
+      - name: secret-volume
+        secret:
+          secretName: {{ required "secrets::file_secret_name is requred" .Values.secrets.file_secret_name }}
+          defaultMode: 256
+      securityContext:
+        fsGroup: 2000
+      containers:
+      - name: {{ template "name" . }}-messagelistener
+        image: {{ required "A valid image must be specified!" .Values.messagelistener.deployment.container.image }}:{{ .Chart.AppVersion }}
+        imagePullPolicy: Always
+        env:
+        - name: ZCONNECT_COMPONENT
+          value: "message-listener"
+        envFrom:
+        - configMapRef:
+            name: {{ .Release.Name }}-{{ .Values.global_config.name }}
+        volumeMounts:
+        - name: secret-volume
+          readOnly: true
+          mountPath: /secrets
+        readinessProbe:
+          tcpSocket:
+            port: 12345
+          initialDelaySeconds: 10
+          periodSeconds: 10
+{{- if .Values.messagelistener.deployment.container.command }}
+        command:
+{{ .Values.messagelistener.deployment.container.command | toYaml | indent 10 }}
+{{- end }}
+
+        resources:
+{{ toYaml .Values.messagelistener.deployment.resources | indent 10 }}

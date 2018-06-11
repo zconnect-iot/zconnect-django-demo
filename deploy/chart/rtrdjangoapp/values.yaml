@@ -1,0 +1,125 @@
+---
+
+.container_resources: &container_resources
+  limits:
+    memory: 256Mi
+    cpu: 100m
+  requests:
+    memory: 128Mi
+    cpu: 10m
+
+api:
+  ingress:
+    # Also has to be overridden
+    # host_backend:
+    paths:
+      - /anapi
+      - /anotherapi
+
+  service:
+    port: 12345
+    name: api-backend
+
+  deployment:
+    replicas: 1
+    resources: *container_resources
+    container:
+      image: apiimage:latest
+      command:
+        - "sh"
+        - "-c"
+        - "python3 /django/manage.py migrate ; uwsgi --ini /django/configs/uwsgi.ini"
+
+celerybeat:
+  # If enabled it will run this beat thing separately - this can be disabled to
+  # run the beat server alongside the runner. This should only be done for
+  # test environments!
+  enabled: true
+  deployment:
+    replicas: 1
+    resources: *container_resources
+    container:
+      image: celerybeatimage:latest
+      command:
+        - "celery"
+        - "-A"
+        - "rtr_django"
+        - "beat"
+        - "--loglevel=DEBUG"
+        - "-s"
+        - "/tmp/celerybeat-schedule"
+        - "--pidfile=/tmp/celerybeat.pid"
+
+celeryrunner:
+  deployment:
+    replicas: 1
+    resources: *container_resources
+    container:
+      image: celeryrunnerimage:latest
+      command:
+        - "celery"
+        - "-A"
+        - "rtr_django"
+        - "worker"
+        - "-l"
+        - "info"
+
+messagelistener:
+  deployment:
+    replicas: 1
+    resources: *container_resources
+    container:
+      image: messagelistenerimage:latest
+      command:
+        - "uwsgi"
+        - "--ini"
+        - "/django/configs/uwsgi-listener.ini"
+
+
+# ConfigMap - each value is set as an environment variable in every container
+global_config:
+  name: exampleconfig
+  data:
+    PYTHONPATH: /django
+
+    # These are examples, don't uncomment
+    # REDIS_USERNAME:
+    # REDIS_PASSWORD:
+    # REDIS_HOST:
+
+    # SPARKPOST_API_KEY:
+
+    # ZCONNECT_SENDER_ID: a-3oe2vn-anuof6uxwi
+    # ZCONNECT_SENDER_PASSWORD:
+    # ZCONNECT_LISTENER_ID: a-3oe2vn-o2vx9fksmq
+    # ZCONNECT_LISTENER_PASSWORD:
+    # ZCONNECT_IBM_ORG: 3oe2vn
+
+    # GS_BUCKET_NAME: rtr-integration-images
+    # GS_PROJECT_ID: zconnect-201710
+    # GS_SERVICE_ACCOUNT_FILENAME:
+
+    # POSTGRES_HOST: 35.197.208.93
+    # POSTGRES_USER: django
+    # POSTGRES_PASSWORD:
+
+    # These ones are loaded from the specified location
+    # POSTGRES_CA_CERT: /django/keys/integration/postgres-ca.pem
+    # POSTGRES_CLIENT_CERT: /django/keys/integration/postgres-client-cert.pem
+
+    # The same, but secret
+    # POSTGRES_CLIENT_KEY: /secrets/postgres-client-key.pem
+    # SECRET_FILE: /secrets/DJANGO_SECRET
+
+secrets:
+  # The name of the secret that contains files that should be mounted at
+  # /secrets in the containers
+  file_secret_name: null
+
+
+# Redis settings...
+# redis:
+
+
+# Gcloud proxy settings...
+# gcloud-sqlproxy:

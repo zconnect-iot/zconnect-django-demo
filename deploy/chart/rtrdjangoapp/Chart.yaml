@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+description: Helm chart for RTR Django based app
+name: rtrdjangoapp
+version: 0.2.3
+appVersion: 0.7.4
+keywords:
+  - zconnect
+  - rtr
+  - django
+sources:
+  - https://code.zoetrope.io/zconnect/helm-deployment-start
+maintainers:
+  - name: Michael Boulton
+    email: boulton@zoetrope.io
+engine: gotpl

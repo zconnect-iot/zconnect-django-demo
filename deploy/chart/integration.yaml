@@ -1,0 +1,96 @@
+---
+global_config:
+  name: rtr-integration-config
+  data:
+    DJANGO_SETTINGS_MODULE: rtr_django.settings.integration
+
+    # Just hosting on the cluster in integration
+    REDIS_USERNAME: redis
+    REDIS_PASSWORD: xvU1JdXMyz
+
+    ZCONNECT_SENDER_ID: a-3oe2vn-anuof6uxwi
+    ZCONNECT_LISTENER_ID: a-3oe2vn-moe6hpqb3h
+    ZCONNECT_IBM_ORG: 3oe2vn
+
+    GS_BUCKET_NAME: rtr-integration-images
+    GS_PROJECT_ID: zconnect-201710
+
+    POSTGRES_USER: django
+    # this is NOT a postgres passfile! this just has the password in it!
+    POSTGRES_PASSWORD: /secrets/postgres-password
+
+    # in repo
+
+    # secret files mounted in /secrets
+    SECRET_FILE: /secrets/DJANGO_SECRET
+    GS_SERVICE_ACCOUNT_FILENAME: /secrets/ZConnect-247ef98818ca.json
+    SPARKPOST_API_KEY: /secrets/sparkpost-api-key
+    ZCONNECT_SENDER_PASSWORD: /secrets/zconnect-sender-password
+    ZCONNECT_LISTENER_PASSWORD: /secrets/zconnect-listener-password
+    JWT_PRIVATE_KEY: /secrets/private.pem
+    TWILIO_ACCOUNT_SID: /secrets/TWILIO_ACCOUNT_SID
+    TWILIO_AUTH_TOKEN: /secrets/TWILIO_AUTH_TOKEN
+
+    # These are not used any more because we're using the cloud sql proxy
+    # POSTGRES_HOST: 35.197.208.93
+    # POSTGRES_CLIENT_KEY_ORIG: /secrets/postgres-client-key.pem
+    # POSTGRES_CLIENT_KEY: /postgres/postgres-client-key.pem
+    # POSTGRES_CA_CERT: /django/keys/integration/postgres-ca.pem
+    # POSTGRES_CLIENT_CERT: /django/keys/integration/postgres-client-cert.pem
+
+api:
+  ingress:
+    host_backend: rtrzc2.olapi.io
+    paths:
+      - /api/v3
+      - /admin
+      - /static
+
+  service:
+    port: 8981
+
+  deployment:
+    container:
+      image: eu.gcr.io/zconnect-201710/rtrdjangoapp
+
+celerybeat:
+  deployment:
+    container:
+      image: eu.gcr.io/zconnect-201710/rtrdjangoapp
+celeryrunner:
+  deployment:
+    container:
+      image: eu.gcr.io/zconnect-201710/rtrdjangoapp
+messagelistener:
+  deployment:
+    container:
+      image: eu.gcr.io/zconnect-201710/rtrdjangoapp
+
+secrets:
+  file_secret_name: rtr-integration-secrets
+
+
+####################
+# For other charts
+####################
+
+
+redis:
+  usePassword: false
+
+
+gcloud-sqlproxy:
+  resources:
+    limits:
+      memory: 256Mi
+      cpu: 100m
+    requests:
+      memory: 100Mi
+      cpu: 25m
+
+  cloudsql:
+    instances:
+      - instance: rtr-integration-postgres
+        project: zconnect-201710
+        region: europe-west2-c
+        port: 5432

@@ -1,0 +1,89 @@
+# This should be kept the same as the docker-compose-postgres, except it won't
+# mount any source. No hot reloading etc but it hsould behave more like the
+# server when it's actually deployed
+---
+version: '3.2'
+
+services:
+  server: &common_mount
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    volumes:
+      - type: bind
+        target: /django/configs
+        source: ../configs
+        read_only: true
+      - target: /django/keys
+        source: ../keys
+        type: bind
+        read_only: true
+    ports:
+      - "8981:8981"
+    depends_on:
+      - database
+      - init_database
+    environment:
+      DJANGO_SETTINGS_MODULE: django_demo.settings.composelocal
+      PYTHONPATH: "/django"
+    command:
+      # server
+      # ["python3", "/django/manage.py", "runserver", "0.0.0.0:8981"]
+      # ["uwsgi", "--ini", "/django/configs/uwsgi-development.ini"]
+      - "sh"
+      - "-c"
+      - "sleep 1; python3 /django/manage.py migrate ; python3 /django/manage.py runserver 0.0.0.0:8981"
+
+  init_database:
+    image: timms/postgres-logging:9.6
+    depends_on:
+      - database
+    volumes:
+      - type: bind
+        target: /init_postgres.sh
+        source: ./init_postgres.sh
+        read_only: true
+    environment:
+      POSTGRES_PASSWORD: BJQmqgHbHjFSBw
+    command:
+      - sh
+      - -c
+      - psql postgresql://postgres:BJQmqgHbHjFSBw@database:5432/ -c "CREATE USER django WITH PASSWORD 'shae6woifaeTah7Eipax';"; psql postgresql://postgres:BJQmqgHbHjFSBw@database:5432/ -c "CREATE DATABASE rtr WITH OWNER django ENCODING 'utf-8';";
+
+  database:
+    # Run deploy/init_postgres.sh after starting
+    # image: postgres:9.6-alpine
+    image: timms/postgres-logging:9.6
+    ports:
+      - "5432:5432"
+    volumes:
+      - "dbdata:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_PASSWORD: BJQmqgHbHjFSBw
+
+  celeryworker:
+    <<: *common_mount
+    ports: []
+    command:
+      # celery worker
+      ["celery", "-A", "django_demo", "worker", "-l", "info"]
+
+  celerybeat:
+    <<: *common_mount
+    ports: []
+    command:
+      # celery worker
+      ["celery", "-A", "django_demo", "beat", "-l", "info", "--scheduler", "django_celery_beat.schedulers:DatabaseScheduler"]
+
+  # listener:
+  #   <<: *common_mount
+  #   ports: []
+  #   command:
+  #     # message listener
+  #     ["uwsgi", "--ini", "/django/configs/uwsgi-listener-development.ini"]
+
+  redis:
+    image: redis:latest
+
+volumes:
+  dbdata:
