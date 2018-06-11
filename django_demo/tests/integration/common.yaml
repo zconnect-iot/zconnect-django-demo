@@ -1,0 +1,13 @@
+---
+name: demo django tavern includes
+
+description: username/password for integration tests against demo django.
+
+variables:
+  host: "http://localhost:8981"
+
+  admin_username: admin@zoetrope.io
+  admin_password: SPITURSTUD
+
+  joeseed_username: joeseed@zoetrope.io
+  joeseed_password: test_password

@@ -1,0 +1,8 @@
+*
+!.gitignore
+
+!__init__.py
+!0001_initial.py
+!0002_add_foreign_keys.py
+!0003_add_demo_product.py
+!0004_org_device_related_name.py

@@ -1,0 +1,25 @@
+# Anything for running tests
+# Test programs + editable dependencies for hot reloading
+
+pytest
+pytest-flakes
+pytest-cov
+pytest-xdist
+pytest-django
+mockredispy
+
+freezegun
+
+paramiko
+
+freezegun
+
+colorlog
+
+tavern>=0.8.2
+
+factory-boy
+
+-e apps/zconnect-django[tests]
+
+pylint

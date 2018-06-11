@@ -1,0 +1,14 @@
+# Anything required BY THIS APP IN PARTICULAR
+# NOT BY DEPENDENT APPS
+# That should be handled individually - eg for testing we use `install -e`, but not when building a docker image, so the dependencies are difference
+sparkpost
+twilio==6
+google-auth
+google-cloud-storage
+pillow
+django-storages
+colorlog
+uwsgi
+git+https://github.com/ZoetropeLabs/django-db-geventpool.git
+git+https://github.com/chibisov/drf-extensions.git@00712396be979aaa5a86246bee39284b5e5e8d71#egg=drf-extensions
+git+https://github.com/ZoetropeLabs/iot-python.git@c868f770efb5f2d8c25bf6ee9a55ce38b2f94f06#egg=ibmiotf

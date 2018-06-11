@@ -1,0 +1,12 @@
+# Required for dev - docker, etc
+
+docker-compose
+bump2version
+tox
+
+Sphinx
+# For markdown with sphinx
+sphinx_rtd_theme
+recommonmark
+
+ipython

@@ -1,0 +1,7 @@
+---
+name: django demo includes for running in docker compose
+
+description: Different host
+
+variables:
+  host: "http://server:8981"

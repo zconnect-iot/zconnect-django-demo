@@ -1,0 +1,16 @@
+[MASTER]
+disable=similarity,format,design,no-self-use,invalid-name,abstract-method,star-args,no-init,locally-disabled,missing-docstring,logging-format-interpolation,fixme,wrong-import-order,no-else-return,arguments-differ,unused-argument,bad-super-call,protected-access,simplifiable-if-statement,bad-classmethod-argument,inconsistent-return-statements,import-error,duplicate-code
+enable=bad-indentation,mixed-indentation,unnecessary-semicolon,superfluous-parens
+
+ignore=tests
+
+[REPORTS]
+
+reports=no
+
+[SIMILARITIES]
+min-similarity-lines=20
+ignore-imports=yes
+
+[TYPECHECK]
+ignored-classes=Device,Product,User,TimeSeriesData,Location,UpdateExecution,TimeSeriesData,Event,ProductFirmware,WatsonIoTSenderSingleton,UpdateStrategy,MessageStream,Zone,BilledOrganization,AbstractDevice,ForeignKey,AbstractStubbableModelViewSet,NestedViewSetMixinWithPermissions,ManyToManyField,Bill,WiringMapping,EventDefintion,ActivitySubscription,DeviceSensor,TSRawData,SenderSingleton,EventDefinition,SensorType,DeviceUpdateStatus,OrganizationUser,SiteGroup,MessageProcessorSingleton,OrganizationLogo

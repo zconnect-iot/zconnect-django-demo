@@ -1,0 +1,86 @@
+---
+version: '3.2'
+
+services:
+  server: &common_mount
+    depends_on:
+      - redis
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.composelocal
+    volumes:
+      - type: bind
+        target: /django/django_demo
+        source: ./django_demo
+        read_only: true
+      - type: bind
+        target: /django/apps/zconnect-django
+        source: ./apps/zconnect-django
+        read_only: true
+
+      - type: bind
+        target: /django/configs
+        source: ./configs
+        read_only: true
+      - type: bind
+        target: /django/manage.py
+        source: ./manage.py
+        read_only: true
+      - target: /django/run/
+        source: ./run
+        type: bind
+      - target: /django/keys
+        source: ./keys
+        type: bind
+    ports:
+      - "8981:8981"
+    environment:
+      DJANGO_SETTINGS_MODULE: django_demo.settings.composelocal
+      PYTHONPATH: "/django:/django/apps/zconnect-django"
+      DJANGO_SEED_PROJECT: 1
+      DJANGO_SEED_REQUIRES_SETUP: 1
+    command:
+      # server
+      # ["python3", "/django/manage.py", "runserver", "0.0.0.0:8981"]
+      # ["uwsgi", "--ini", "/django/configs/uwsgi-development.ini"]
+      - "sh"
+      - "-c"
+      - "python3 /django/manage.py migrate ; uwsgi --ini /django/configs/uwsgi.ini"
+
+  celeryworker:
+    <<: *common_mount
+    ports: []
+    command:
+      # celery worker
+      - "celery"
+      - "-A"
+      - "django_demo"
+      - "worker"
+      - "-l"
+      - "info"
+
+  celerybeat:
+    <<: *common_mount
+    ports: []
+    command:
+      # celery worker
+      - "celery"
+      - "-A"
+      - "django_demo"
+      - "beat"
+      - "--loglevel=DEBUG"
+      - "-s"
+      - "/tmp/celerybeat-schedule"
+      - "--pidfile=/tmp/celerybeat.pid"
+
+  listener:
+    <<: *common_mount
+    ports: []
+    command:
+      # message listener
+      - "uwsgi"
+      - "--ini"
+      - "/django/configs/uwsgi-listener.ini"
+
+  redis:
+    image: redis:latest

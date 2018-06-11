@@ -1,0 +1,58 @@
+---
+# 'version' is required by logging library
+version: 1
+disable_existing_loggers: false
+# can have multiple formatters and handlers
+formatters:
+    default:
+        (): colorlog.ColoredFormatter
+        format: "{asctime:s} [{bold:s}{log_color:s}{levelname:s}{reset:s}]: ({bold:s}{name:s}:{lineno:d}{reset:s}) {message:s}"
+        style: "{"
+        datefmt: "%X"
+        log_colors:
+            DEBUG:    cyan
+            INFO:     green
+            WARNING:  yellow
+            ERROR:    red
+            CRITICAL: red,bg_white
+            TRACE:    white
+handlers:
+    stderr:
+        class: colorlog.StreamHandler
+        formatter: default
+loggers:
+    nothing: &logref
+        handlers:
+            - stderr
+        level: DEBUG
+        propagate: false
+    django:
+        <<: *logref
+    django.db.backends:
+        <<: *logref
+        level: INFO
+    django.template:
+        <<: *logref
+        level: INFO
+    rest_auth:
+        <<: *logref
+    rest_framework:
+        <<: *logref
+    rest_framework_simplejwt:
+        <<: *logref
+    django_demo:
+        <<: *logref
+    zconnect:
+        <<: *logref
+    tavern:
+        <<: *logref
+        level: INFO
+    ibmiotf:
+        <<: *logref
+        # level: INFO
+    paho:
+        <<: *logref
+        level: INFO
+    rules:
+        <<: *logref
+        # level: INFO

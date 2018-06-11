@@ -1,0 +1,206 @@
+---
+
+.docker_build_common: &docker_build_common
+    image: michaelboulton/rocker-deploy:gke-latest
+    tags:
+        - dind
+    services:
+        - docker:dind
+
+.gcr_login_common: &gcr_login_common
+    before_script:
+        - gcloud config set project $GCLOUD_PROJECT_NAME
+        # update
+        - gcloud --quiet components update
+        # get credentials
+        - echo $GCLOUD_CONTAINER_AUTH | base64 -d > /tmp/auth.json
+        # login
+        - gcloud auth activate-service-account --key-file /tmp/auth.json
+        - docker login -u _json_key --password-stdin https://eu.gcr.io < /tmp/auth.json
+
+variables:
+    GIT_SUBMODULE_STRATEGY: none
+
+    # base docker image name
+    BASENAME: djangodemoapp
+    # base name for tag in repository
+    REMOTE_IMAGE_NAME: ${GCR_REGISTRY_PREFIX}/${GCLOUD_PROJECT_NAME}/${BASENAME}:${CI_COMMIT_TAG}
+
+    GCR_REGISTRY_PREFIX: eu.gcr.io
+    GCLOUD_PROJECT_NAME: zconnect-201710
+    GCLOUD_CLUSTER_NAME: cluster-1
+    GCLOUD_COMPUTE_ZONE: europe-west2-a
+
+    GCLOUD_VER: 199.0.0
+
+    # Extra things that need to be set:
+    # GCLOUD_CONTAINER_AUTH: Look at helm-deployment-start README on how to get this
+    # KUBE_NAMESPACE: set via gitlab kubernetes integration
+    # KUBECONFIG: set via gitlab kubernetes integration
+
+stages:
+    - precheck
+    - tests
+    - push_image
+    - deploy
+
+#############################################################################
+# Run pyflakes
+
+pep8 django app:
+    image: michaelboulton/python-package-build:3.5-slim-jessie
+    stage: precheck
+
+    before_script:
+        - pip install pylama
+    script:
+        - pylama -o pytest.ini -l pep8 django_demo apps/zconnect-django
+
+    allow_failure: true
+
+Pyflakes tests:
+    image: michaelboulton/python-package-build:3.5-slim-jessie
+    stage: precheck
+
+    before_script:
+        - pip install pylama
+    script:
+        - pylama -o pytest.ini -l pyflakes django_demo/tests apps/zconnect-django/tests
+
+    allow_failure: true
+
+Check sort order of django app:
+    image: michaelboulton/python-package-build:3.5-slim-jessie
+    stage: precheck
+
+    before_script:
+        - pip install tox
+    script:
+        - tox -e isort
+
+    allow_failure: true
+
+Pyflakes django app:
+    image: michaelboulton/python-package-build:3.5-slim-jessie
+    stage: precheck
+
+    before_script:
+        - pip install pylama
+    script:
+        - pylama -o pytest.ini -l pyflakes django_demo apps/zconnect-django/zconnect
+
+#############################################################################
+# Integration tests
+
+Run integration tests with docker-compose:
+    <<: *docker_build_common
+    only:
+        - master
+
+    variables:
+        GIT_SUBMODULE_STRATEGY: recursive
+        GIT_SSL_CAPATH: /etc/ssl/certs/
+
+    stage: tests
+
+    before_script:
+        # Use rocker to build the base image and the others
+        - apk update && apk add --no-cache --virtual .fetch-deps git python3-dev curl openssh libffi-dev build-base openssl-dev linux-headers pcre-dev && rm -rf /var/cache/apk/*
+        - pip3 install --upgrade pip setuptools docker-compose
+        - docker-compose -f docker-compose-tavern.yaml build
+    script:
+        - docker-compose -f docker-compose-tavern.yaml run tavern
+    after_script:
+        - docker-compose -f docker-compose-tavern.yaml stop
+
+#############################################################################
+# Tests + pylint
+
+Lint django app:
+    image: michaelboulton/python-package-build:3.5-slim-jessie
+    stage: tests
+    tags:
+        - kwak
+
+    before_script:
+        - pip install -r requirements.txt
+    script:
+        - pylint django_demo apps/zconnect-django/zconnect --rcfile .pylintrc
+
+Test zconnect-django:
+    image: michaelboulton/python-package-build:3.5-slim-jessie
+    stage: tests
+    tags:
+        - kwak
+
+    before_script:
+        - cd apps/zconnect-django
+        - pip3 install tox
+    script:
+        - tox -e py35-django20
+
+Test django app:
+    image: michaelboulton/python-package-build:3.5-slim-jessie
+    stage: tests
+    tags:
+        - kwak
+
+    before_script:
+        - pip3 install tox
+    script:
+        - tox -e py35-django20
+
+#############################################################################
+# build + push image
+
+Build and push docker image:
+    <<: *docker_build_common
+    <<: *gcr_login_common
+
+    stage: push_image
+
+    only:
+        - tags
+
+    script:
+        - >
+            docker build .
+            -t ${REMOTE_IMAGE_NAME}
+            -f deploy/Dockerfile
+        - docker push ${REMOTE_IMAGE_NAME}
+
+#############################################################################
+# Deploy
+
+Deploy tagged version to integration:
+    <<: *docker_build_common
+    image: michaelboulton/helmdeploy:v2.8.2
+
+    stage: deploy
+
+    environment:
+        name: integration
+
+    variables:
+        GIT_SUBMODULE_STRATEGY: none
+        TILLER_NAMESPACE: $KUBE_NAMESPACE
+
+    before_script:
+        - helm init --client-only
+        - helm repo add incubator https://kubernetes-charts-incubator.storage.googleapis.com
+        - helm dependency update ./deploy/chart/djangodemoapp
+        - helm dependency build ./deploy/chart/djangodemoapp
+        - helm init --upgrade --service-account=tiller-sa
+        - sleep 10
+        - helm list
+    script:
+        - >
+            helm upgrade
+            --namespace $KUBE_NAMESPACE
+            --values ./deploy/chart/integration.yaml
+            $(helm list | grep djangodemoapp | awk '{print $1}')
+            ./deploy/chart/djangodemoapp
+
+    only:
+        - tags
+    when: manual
