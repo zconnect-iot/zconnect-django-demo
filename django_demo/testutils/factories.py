@@ -1,10 +1,10 @@
 from zconnect.testutils.factories import ProductFactory
 
 
-class Eco3Factory(ProductFactory):
-    name="ECO3"
-    iot_name="eco3"
-    sku="ECO5500"
+class FridgeFactory(ProductFactory):
+    name="Fridge"
+    iot_name="Fridge"
+    sku="123456"
     manufacturer="Demo"
     url="http://www.google.co.uk"
     support_url="http://www.google.co.uk"
