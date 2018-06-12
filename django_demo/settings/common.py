@@ -226,9 +226,9 @@ DEFAULT_LISTENER_SETTINGS = {
 
 ZCONNECT_DEVICE_MODEL = "django_demo.DemoDevice"
 ZCONNECT_DEVICE_SERIALIZER = "django_demo.serializers.DemoDeviceSerializer"
-ZCONNECT_JWT_SERIALIZER = "django_demo.serializers.DemoJWTUserSerializer"
-ZCONNECT_USER_SERIALIZER = "django_demo.serializers.DemoUserSerializer"
-ZCONNECT_ADMIN_USER_SERIALIZER = "django_demo.serializers.DemoAdminUserSerializer"
+ZCONNECT_JWT_SERIALIZER = "zconnect.serializers.JWTUserSerializer"
+ZCONNECT_USER_SERIALIZER = "zconnect.serializers.UserSerializer"
+ZCONNECT_ADMIN_USER_SERIALIZER = "zconnect.serializers.UserSerializerAdmin"
 ZCONNECT_PRODUCT_SERIALIZER = "django_demo.serializers.DemoProductSerializer"
 AUTH_USER_MODEL = 'zconnect.User'
 

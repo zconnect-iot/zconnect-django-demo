@@ -10,36 +10,15 @@ from rest_framework_extensions.routers import ExtendedSimpleRouter
 
 from zconnect.views import CeleryMQTTTestViewSet, StackSamplerView
 
-from .views import (
-    CompanyViewSet, DistributorViewSet, DemoDeviceViewSet, SiteViewSet, TSRawDataViewSet,
-    WiringMappingViewSet)
+from .views import DemoDeviceViewSet
 
 ##############################
 # For this app
 ##############################
 
-
-
-
-
 router = ExtendedSimpleRouter()
-router.register(r'distributors', DistributorViewSet, base_name="distributors")
-router.register(r'companies', CompanyViewSet, base_name="companies")
-router.register(r'sites', SiteViewSet, base_name="sites")
-router.register(r'wiring_mappings', WiringMappingViewSet, base_name="wiringmappings")
 
 device_router = router.register(r'devices', DemoDeviceViewSet, base_name="devices")
-device_router.register(
-    r'ts_raw_data',
-    TSRawDataViewSet,
-    parents_query_lookups=['device'],
-    base_name="ts_raw_data"
-)
-
-# TODO
-# http data endpoint
-# Might have to be a basic function-type view because it doesn't correspond
-# directly to the Device model
 
 
 ##############################

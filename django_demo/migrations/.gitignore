@@ -6,3 +6,4 @@
 !0002_add_foreign_keys.py
 !0003_add_demo_product.py
 !0004_org_device_related_name.py
+!0005_remove_orgs_and_mapping.py
