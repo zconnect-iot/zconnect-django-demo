@@ -21,13 +21,34 @@ def seed_data():
     )
     from django_demo.testutils.factories import FridgeFactory
 
-    # Create RTR Product, ProductPreprocessors and ProductTags
-    # See https://sqldbm.com/Project/MySQL/Share/qvOpUcDfTnwexCqKFXLgBg for schema
     product = FridgeFactory()
 
     ProductTagsFactory(
-        tag="sliding-door",
+        tag="fridge",
         product=product,
+    )
+
+    EventDefinitionFactory(
+        product=product,
+        scheduled=True
+    )
+
+    EventDefinitionFactory(
+        product=product,
+        ref="fridge temp",
+        condition="avg_600_box_temp<4",
+        actions={
+            "activity" : {
+                "verb": "reported",
+                "description": "Fridge temp is too cold. Average temp "
+                               "over the past 10 minutes "
+                               "was {avg_600_box_temp} °C",
+                "severity": 20,
+                "category": "business metrics",
+                "notify": True
+            },
+        },
+        debounce_window=300, # very short debounce!
     )
 
     # All sensors for RTR door product
@@ -101,6 +122,30 @@ def seed_data():
             # across all data, but for this case is it
             device_sensor_map["{}:{}".format(device.id, sensor_type.sensor_name)] = device_sensor
 
+    activities = [
+        {
+            "verb": "reported",
+            "description": "Box temp was less than 5",
+            "severity": 20,
+            "category": "business metric",
+            "notify": False
+        },
+        {
+            "verb": "reported",
+            "description": "Box temp was less than 4",
+            "severity": 30,
+            "category": "maintenance",
+            "notify": False
+        },
+        {
+            "verb": "reported",
+            "description": "Box temp was less than 3",
+            "severity": 40,
+            "category": "system",
+            "notify": True
+        }
+    ]
+
     reading_map = {
         "thermostat": 1,
         "box_temp": 5,
@@ -124,6 +169,9 @@ def seed_data():
                     #value=sin(i),
                     value=value
                 ))
+        # Populate an activity stream for each device
+        for activity in activities:
+            action_model.send(device, target=device, **activity)
 
     TimeSeriesData.objects.bulk_create(ts_data_to_save)
 
