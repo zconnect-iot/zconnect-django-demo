@@ -60,22 +60,26 @@ def seed_data():
     sensor2 = SensorTypeFactory(
         sensor_name="box_temp",
         unit="°C",
-        product=product
+        product=product,
+        aggregation_type="mean"
     )
     sensor3 = SensorTypeFactory(
         sensor_name="hot_coolant_temp",
         unit="°C",
-        product=product
+        product=product,
+        aggregation_type="mean"
     )
     sensor4 = SensorTypeFactory(
         sensor_name="cold_coolant_temp",
         unit="°C",
-        product=product
+        product=product,
+        aggregation_type="mean"
     )
     sensor5 = SensorTypeFactory(
         sensor_name="current_in",
         unit="Amps",
-        product=product
+        product=product,
+        aggregation_type="mean"
     )
 
     fake_org = BilledOrganizationFactory(name="fake_org")
