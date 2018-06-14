@@ -42,7 +42,7 @@ COPY keys /django/keys
 
 COPY django_demo /django/django_demo
 COPY static /django/static
-RUN PYTHONPATH=/django DJANGO_SETTINGS_MODULE=django_demo.settings.development django-admin collectstatic --noinput && mv /django/run/static /www
+RUN PYTHONPATH=/django DJANGO_SETTINGS_MODULE=django_demo.settings.composelocal django-admin collectstatic --noinput && mv /django/run/static /www
 
 USER worker_user
 
