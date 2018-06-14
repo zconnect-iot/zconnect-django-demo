@@ -4,6 +4,7 @@ import os
 from os.path import abspath, dirname, join
 
 import yaml
+import uuid
 
 # project imports
 from .common import *
@@ -83,19 +84,31 @@ REST_FRAMEWORK.update({
 ZCONNECT_SETTINGS = {
     "SENDER_SETTINGS": {
         "cls": "zconnect.messages.IBMInterface",
-        "auth-key": "abc123-fakeorg",
-        "auth-token": "kofdsof",
-        "password": "kofdsof",
-        "org": "fakeorg",
+        "type": "shared",
+
+        "broker-url": "vernemq",
+        "full_client_id": "zconnect-sender-{}".format(uuid.uuid4()),
+        "id": "test_sender",
+        "disable-tls": True,
+        "port": 1883,
+        "auth-method": "token",
+        "auth-key": "overlock-worker",
+        "auth-token": "123456789",
     },
     "LISTENER_SETTINGS": {
         "cls": "zconnect.messages.IBMInterface",
-        "auth-key": "def456-fakeorg",
-        "auth-token": "12345",
-        "password": "kfodkfo",
-        "worker_events_rate_limits": {},
-        "rate_limit_period": 60,
-        "org": "fakeorg"
+        "type": "shared",
+
+        "broker-url": "vernemq",
+        "full_client_id": "zconnect-listener-{}".format(uuid.uuid4()),
+        "id": "test_sender",
+        "disable-tls": True,
+        "port": 1883,
+        "auth-method": "token",
+        "auth-key": "overlock-worker",
+        "auth-token": "123456789",
+
+        **DEFAULT_LISTENER_SETTINGS,
     },
 }
 

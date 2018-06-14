@@ -7,21 +7,11 @@ from .development import *
 # ##### DATABASE CONFIGURATION ############################
 DATABASES = {
     'default': {
-        'ENGINE': 'django_db_geventpool.backends.postgresql_psycopg2',
-        "NAME": "demo_local_test",
-        'HOST': "database",
-        "USER": "django",
-        "PASSWORD": "shae6woifaeTah7Eipax",
-        # "USER": "postgres",
-        # "PASSWORD": "BJQmqgHbHjFSBw",
-        'ATOMIC_REQUESTS': False,
-        'CONN_MAX_AGE': 0,
-        "OPTIONS": {
-            'MAX_CONNS': 10,
-            "application_name": "django-demo-composelocal",
-        }
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': join(PROJECT_ROOT, 'run', 'demo.sqlite3'),
     }
 }
+
 DATABASES["TEST"] = DATABASES["test"] = DATABASES["default"]
 
 REDIS["connection"]["host"] = "redis"

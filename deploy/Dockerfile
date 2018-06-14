@@ -30,6 +30,9 @@ RUN chown worker_user /django/run /secrets
 
 COPY --from=builder /install /usr/local
 
+COPY requirements/development.txt /
+RUN pip3 install -r development.txt
+
 COPY manage.py /django
 COPY configs /django/configs
 COPY keys /django/keys
