@@ -84,47 +84,28 @@ def seed_data():
 
     fake_org = BilledOrganizationFactory(name="fake_org")
 
-    device1 = DeviceFactory(
+    device = DeviceFactory(
+        id='123',
         product=product,
         name="Front Door",
         # no fw_version
         online=False,
         sim_number="8944538525004714414",
     )
-    device1.orgs.add(fake_org)
+    device.orgs.add(fake_org)
 
-    device1a = DeviceFactory(
-        product=product,
-        name="Back Door",
-        # no fw_version
-        online=False,
-        sim_number="123456789",
-    )
-    device1a.orgs.add(fake_org)
-
-    device2 = DeviceFactory(
-        product=product,
-        name="Front Door",
-        # no fw_version
-        online=False,
-        sim_number="8944538525004715387",
-    )
-    device2.orgs.add(fake_org)
-
-    devices = [device1, device1a, device2]
     sensor_types = [sensor1, sensor2, sensor3, sensor4, sensor5]
     device_sensor_map = {}
     # Loop over all devices and sensors to create 35 device_sensors
-    for device in devices:
-        for sensor_type in sensor_types:
-            device_sensor = DeviceSensorFactory(
-                device=device,
-                resolution=900,
-                sensor_type=sensor_type,
-            )
-            # This key should include the resolution for cases where resolution is not constant
-            # across all data, but for this case is it
-            device_sensor_map["{}:{}".format(device.id, sensor_type.sensor_name)] = device_sensor
+    for sensor_type in sensor_types:
+        device_sensor = DeviceSensorFactory(
+            device=device,
+            resolution=900,
+            sensor_type=sensor_type,
+        )
+        # This key should include the resolution for cases where resolution is not constant
+        # across all data, but for this case is it
+        device_sensor_map["{}:{}".format(device.id, sensor_type.sensor_name)] = device_sensor
 
     activities = [
         {
@@ -161,21 +142,20 @@ def seed_data():
     now = datetime.datetime.utcnow()
     # Create a TimeSeriesData entries, attaching it to the appropriate device_sensor
     ts_data_to_save = []
-    for device in devices:
-        for sensor_type in sensor_types:
-            for i in range(100):
-                ds_map_key = "{}:{}".format(device.id, sensor_type.sensor_name)
-                name = sensor_type.sensor_name
-                value = reading_map.get(name, 1)
-                ts_data_to_save.append(TimeSeriesData(
-                    ts=now - timedelta(minutes=15*i),
-                    sensor=device_sensor_map[ds_map_key],
-                    #value=sin(i),
-                    value=value
-                ))
-        # Populate an activity stream for each device
-        for activity in activities:
-            action_model.send(device, target=device, **activity)
+    for sensor_type in sensor_types:
+        for i in range(100):
+            ds_map_key = "{}:{}".format(device.id, sensor_type.sensor_name)
+            name = sensor_type.sensor_name
+            value = reading_map.get(name, 1)
+            ts_data_to_save.append(TimeSeriesData(
+                ts=now - timedelta(minutes=15*i),
+                sensor=device_sensor_map[ds_map_key],
+                #value=sin(i),
+                value=value
+            ))
+    # Populate an activity stream for each device
+    for activity in activities:
+        action_model.send(device, target=device, **activity)
 
     TimeSeriesData.objects.bulk_create(ts_data_to_save)
 
