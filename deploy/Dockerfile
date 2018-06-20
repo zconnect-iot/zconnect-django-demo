@@ -23,6 +23,8 @@ RUN pip3 install \
 
 FROM python:3.5-slim-jessie
 ENV PYTHONUNBUFFERED 1
+ENV DJANGO_SEED_PROJECT 1
+ENV DJANGO_SEED_PROJECT_ONCE 1
 
 RUN adduser --system --disabled-password --gecos '' --uid 401 worker_user
 RUN mkdir -p /django /django/run /secrets
@@ -42,7 +44,8 @@ COPY static /django/static
 COPY templates /django/templates
 RUN PYTHONPATH=/django DJANGO_SETTINGS_MODULE=django_demo.settings.development django-admin collectstatic --noinput && mv /django/run/static /www
 
-USER worker_user
+# TODO Why can worker_user not write to demo.sqlite3?
+# USER worker_user
 
 # CMD ["python3", "/django/manage.py", "runserver", "0.0.0.0:8981"]
 # CMD ["celery", "-A", "django_demo", "worker", "-l", "info"]
