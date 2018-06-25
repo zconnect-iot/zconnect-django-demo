@@ -2,8 +2,8 @@ from zconnect.testutils.factories import ProductFactory
 
 
 class FridgeFactory(ProductFactory):
-    name="Fridge"
-    iot_name="Fridge"
+    name="sim-fridge"
+    iot_name="sim-fridge"
     sku="123456"
     manufacturer="Demo"
     url="http://www.google.co.uk"

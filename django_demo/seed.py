@@ -51,41 +51,71 @@ def seed_data():
         debounce_window=300, # very short debounce!
     )
 
-    # All sensors for RTR door product
-    sensor1 = SensorTypeFactory(
-        sensor_name="thermostat",
+    sensor_types = []
+
+    # All sensors for fridge product
+    sensor_types.append(SensorTypeFactory(
+        sensor_name="property_ambient_temp",
         unit="",
-        product=product
-    )
-    sensor2 = SensorTypeFactory(
-        sensor_name="box_temp",
+        product=product,
+        aggregation_type="mean"
+    ))
+    sensor_types.append(SensorTypeFactory(
+        sensor_name="process_box_temp",
         unit="°C",
         product=product,
         aggregation_type="mean"
-    )
-    sensor3 = SensorTypeFactory(
-        sensor_name="hot_coolant_temp",
+    ))
+    sensor_types.append(SensorTypeFactory(
+        sensor_name="process_hot_coolant_temp",
         unit="°C",
         product=product,
         aggregation_type="mean"
-    )
-    sensor4 = SensorTypeFactory(
-        sensor_name="cold_coolant_temp",
+    ))
+    sensor_types.append(SensorTypeFactory(
+        sensor_name="process_cold_coolant_temp",
         unit="°C",
         product=product,
         aggregation_type="mean"
-    )
-    sensor5 = SensorTypeFactory(
-        sensor_name="current_in",
+    ))
+    sensor_types.append(SensorTypeFactory(
+        sensor_name="process_current_in",
         unit="Amps",
         product=product,
         aggregation_type="mean"
-    )
+    ))
+    sensor_types.append(SensorTypeFactory(
+        sensor_name="property_set_point",
+        unit="°C",
+        product=product,
+        aggregation_type="mean"
+    ))
+    sensor_types.append(SensorTypeFactory(
+        sensor_name="property_door_opened",
+        unit="",
+        product=product
+    ))
+    sensor_types.append(SensorTypeFactory(
+        sensor_name="property_hot_pipe_leak",
+        unit="",
+        product=product
+    ))
+    sensor_types.append(SensorTypeFactory(
+        sensor_name="property_cold_pipe_leak",
+        unit="",
+        product=product
+    ))
+    sensor_types.append(SensorTypeFactory(
+        sensor_name="process_thermostat",
+        unit="°C",
+        product=product,
+        aggregation_type="mean"
+    ))
 
     fake_org = BilledOrganizationFactory(name="fake_org")
 
     device = DeviceFactory(
-        id='123',
+        id=123,
         product=product,
         name="Front Door",
         # no fw_version
@@ -94,7 +124,6 @@ def seed_data():
     )
     device.orgs.add(fake_org)
 
-    sensor_types = [sensor1, sensor2, sensor3, sensor4, sensor5]
     device_sensor_map = {}
     # Loop over all devices and sensors to create 35 device_sensors
     for sensor_type in sensor_types:
@@ -140,26 +169,12 @@ def seed_data():
     }
 
     now = datetime.datetime.utcnow()
-    # Create a TimeSeriesData entries, attaching it to the appropriate device_sensor
-    ts_data_to_save = []
-    for sensor_type in sensor_types:
-        for i in range(100):
-            ds_map_key = "{}:{}".format(device.id, sensor_type.sensor_name)
-            name = sensor_type.sensor_name
-            value = reading_map.get(name, 1)
-            ts_data_to_save.append(TimeSeriesData(
-                ts=now - timedelta(minutes=15*i),
-                sensor=device_sensor_map[ds_map_key],
-                #value=sin(i),
-                value=value
-            ))
+
     # Populate an activity stream for each device
     for activity in activities:
         action_model.send(device, target=device, **activity)
 
-    TimeSeriesData.objects.bulk_create(ts_data_to_save)
-
-     # joe seed
+    # joe seed
     joe = UserFactory()
     # joe.orgs.add(site1)
     joe.add_org(fake_org)

@@ -38,6 +38,7 @@ PROJECT_TEMPLATES = [
 # add apps/ to the Python path
 sys.path.append(normpath(join(PROJECT_ROOT, 'apps')))
 
+USE_TZ = True
 
 # ##### APPLICATION CONFIGURATION #########################
 
