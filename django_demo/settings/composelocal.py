@@ -28,7 +28,7 @@ ZCONNECT_SETTINGS = {
         "type": "shared",
 
         "broker-url": "vernemq",
-        "full_client_id": "g:abcdef:sender:599ed35d42d23c29bee30393",
+        "full_client_id": "g:abcdef:sender:124",
         "id": "test_sender",
         "disable-tls": True,
         "port": 1883,
@@ -41,7 +41,7 @@ ZCONNECT_SETTINGS = {
         "type": "shared",
 
         "broker-url": "vernemq",
-        "full_client_id": "g:abcdef:listener:599ed35d42d23c29bee30394",
+        "full_client_id": "g:abcdef:listener:125",
         "id": "test_sender",
         "disable-tls": True,
         "port": 1883,

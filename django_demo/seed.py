@@ -30,19 +30,12 @@ def seed_data():
 
     EventDefinitionFactory(
         product=product,
-        scheduled=True
-    )
-
-    EventDefinitionFactory(
-        product=product,
-        ref="fridge temp",
-        condition="avg_600_box_temp<4",
+        ref="low box temp",
+        condition="process_box_temp<10", #TODO CHANGE BACK TO 4
         actions={
             "activity" : {
                 "verb": "reported",
-                "description": "Fridge temp is too cold. Average temp "
-                               "over the past 10 minutes "
-                               "was {avg_600_box_temp} °C",
+                "description": "Fridge temp is too cold. Less than 4°C",
                 "severity": 20,
                 "category": "business metrics",
                 "notify": True
@@ -117,7 +110,7 @@ def seed_data():
     device = DeviceFactory(
         id=123,
         product=product,
-        name="Front Door",
+        name="Fridge simulator",
         # no fw_version
         online=False,
         sim_number="8944538525004714414",
@@ -135,44 +128,6 @@ def seed_data():
         # This key should include the resolution for cases where resolution is not constant
         # across all data, but for this case is it
         device_sensor_map["{}:{}".format(device.id, sensor_type.sensor_name)] = device_sensor
-
-    activities = [
-        {
-            "verb": "reported",
-            "description": "Box temp was less than 5",
-            "severity": 20,
-            "category": "business metric",
-            "notify": False
-        },
-        {
-            "verb": "reported",
-            "description": "Box temp was less than 4",
-            "severity": 30,
-            "category": "maintenance",
-            "notify": False
-        },
-        {
-            "verb": "reported",
-            "description": "Box temp was less than 3",
-            "severity": 40,
-            "category": "system",
-            "notify": True
-        }
-    ]
-
-    reading_map = {
-        "thermostat": 1,
-        "box_temp": 5,
-        "hot_coolant_temp": 40,
-        "cold_coolant_temp":4,
-        "current_in":1
-    }
-
-    now = datetime.datetime.utcnow()
-
-    # Populate an activity stream for each device
-    for activity in activities:
-        action_model.send(device, target=device, **activity)
 
     # joe seed
     joe = UserFactory()
