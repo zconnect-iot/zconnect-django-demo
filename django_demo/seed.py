@@ -135,7 +135,7 @@ def seed_data():
     joe.add_org(fake_org)
 
     # admin user
-    UserFactory(
+    admin = UserFactory(
         username="admin@zoetrope.io",
         email="admin@zoetrope.io",
         is_superuser=True,
@@ -144,6 +144,8 @@ def seed_data():
         first_name="bart",
         last_name="simpson",
     )
+    
+    admin.add_org(fake_org)
 
 
 def seed_project():
