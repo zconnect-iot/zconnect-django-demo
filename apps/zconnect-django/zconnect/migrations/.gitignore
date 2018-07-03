@@ -13,3 +13,4 @@
 !0009_event_defs.py
 !0010_remove_timelineentry.py
 !0011_fix_url_length.py
+!0012_add_device_state.py

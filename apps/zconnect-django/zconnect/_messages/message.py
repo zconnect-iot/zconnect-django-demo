@@ -1,15 +1,48 @@
 import datetime
 import logging
 
-from dateutil import parser
 from django.apps import apps
 from django.conf import settings
+from rest_framework import serializers
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
 from zconnect.registry import get_message_handlers, load_from_file
+from zconnect.util import exceptions
+
+from .sender import get_sender
 
 logger = logging.getLogger(__name__)
 
-class Message():
+
+class DevicePKField(serializers.Field):
+    """serialize/deserialize device pk for messages"""
+    def to_representation(self, obj):
+        return obj.pk
+
+    def to_internal_value(self, data):
+        Device = apps.get_model(settings.ZCONNECT_DEVICE_MODEL)
+
+        if isinstance(data, Device):
+            return data
+        else:
+            device_pk = data
+            device = Device.objects.get(pk=device_pk)
+            return device
+
+
+class MessageSerializer(serializers.Serializer):
+    """Serializes a Message object to a dict
+
+    See documentation for Message on what these fields mean
+    """
+    category = serializers.CharField(required=True)
+    body = serializers.JSONField(required=True)
+    device = DevicePKField(required=True)
+    timestamp = serializers.DateTimeField(required=True)
+
+
+class Message:
+
     def __init__(self, category, body, device, timestamp=None):
         """ A standard message object which has all the necessary information
             to construct an event/message in most brokers, e.g. Watson IoT
@@ -37,28 +70,26 @@ class Message():
         )".format(self.category, self.timestamp, self.device.id, self.body)
 
     def as_dict(self):
-        fields = ["category", "body"]
-        d =  {f: getattr(self, f, None) for f in fields}
-        # Just send the PK of the device, because devices are not serializable
-        d["device_pk"] = self.device.pk
-        d["timestamp"] = self.timestamp.isoformat()
-        return d
+        return MessageSerializer(instance=self).data
 
     @classmethod
     def from_dict(cls, d):
+        serializer = MessageSerializer(data=d)
 
-        device_pk = d.pop("device_pk")
-        Device = apps.get_model(settings.ZCONNECT_DEVICE_MODEL)
-        device = Device.objects.get(pk=device_pk)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except DRFValidationError as e:
+            raise exceptions.BadMessageSchemaError("Invalid message data") from e
 
-        timestamp = d.pop("timestamp")
-        timestamp = parser.parse(timestamp)
+        return cls(**serializer.validated_data)
 
-        # Recreates a timeseries object
-        return cls(
-            device=device,
-            timestamp=timestamp,
-            **d
+    def send_to_device(self):
+        """Send this message to the associated device"""
+        sender = get_sender()
+        sender.to_device(
+            self.category,
+            self.body,
+            device=self.device,
         )
 
 
@@ -75,7 +106,7 @@ class MessageProcessor():
         handlers = self.message_handlers.get(message.category, [])
 
         if not handlers:
-            logger.error("No handler for '{}' messages".format(message.category))
+            logger.error("No handler for '%s' messages", message.category)
             logger.debug(message.body)
             return
 

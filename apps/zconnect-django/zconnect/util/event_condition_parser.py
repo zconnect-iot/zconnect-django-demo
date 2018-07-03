@@ -223,7 +223,7 @@ def evaluate_time(comparison, last_eval_time):
     now = datetime.datetime.utcnow()
     comparison_ts = datetime.datetime.today().replace(hour=0, minute=0, second=0, microsecond=0) + datetime.timedelta(seconds=float(comparison))
     last = datetime.datetime.utcfromtimestamp(last_eval_time)
-    logger.debug("Checking times: {} < {} <= {}".format(last, comparison_ts, now))
+    logger.debug("Checking times: %s < %s <= %s", last, comparison_ts, now)
     result = last < comparison_ts <= now
     return result
 
@@ -234,9 +234,7 @@ def evaluate_day(comparison, last_eval_time):
     comparison = int(comparison)
     now = datetime.datetime.utcnow()
 
-    logger.debug("Checking days: {} == {}".format(
-        now.weekday(), comparison)
-    )
+    logger.debug("Checking days: %s == %s", now.weekday(), comparison)
     result = (now.weekday() == comparison)
     return result
 

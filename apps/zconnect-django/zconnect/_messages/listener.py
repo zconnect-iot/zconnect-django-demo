@@ -4,6 +4,7 @@ import gevent
 
 from zconnect import zsettings
 from zconnect.registry import get_message_handlers, load_from_file
+from zconnect.util import exceptions
 from zconnect.util.general import load_from_module
 from zconnect.util.rate_limiter import RateLimit, TooManyRequests
 
@@ -11,6 +12,16 @@ logger = logging.getLogger(__name__)
 
 
 class Listener:
+
+    """Generic message listener
+
+    This provides an abstract interface to whatever listener backend is being
+    used
+
+    Attributes:
+        rl (RateLimiter): Class which can be used as a context manager to rate
+            limit messages from certain devices
+    """
 
     # Sets the rate limiter class
     rl = RateLimit
@@ -40,8 +51,9 @@ class Listener:
             message (Zconnect message object): The incoming message
         """
         handlers = self.message_handlers.get(message.category, [])
+
         if not handlers:
-            logger.error("No handler for '{}' messages".format(message.category))
+            logger.error("No handler for '%s' messages", message.category)
             logger.debug(message.body)
             return
 
@@ -62,8 +74,12 @@ class Listener:
                 logger.warning("Rate limited device id %s with event type %s",
                                message.device.id, message.name)
 
+            except exceptions.WorkerError:
+                logger.exception("Worker error raised during processing of "
+                                 "event %s", message)
+
             except Exception: # pylint: disable=broad-except
-                logger.exception("Exception raised during processing of "
+                logger.exception("Unexpected exception raised during processing of "
                                  "event %s", message)
 
     def subscribe_to_events(self):

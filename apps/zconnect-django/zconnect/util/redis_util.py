@@ -75,7 +75,7 @@ class RedisEventDefinitions:
 
         Args:
             identifier (string): A unique identifier for the event definition
-                and the device, used as the field in the Redis hash 
+                and the device, used as the field in the Redis hash
         """
         state = self.redis.hget(self.redis_event_def_state_key, identifier)
         return bool(state and state == b"True")
@@ -120,16 +120,17 @@ class RedisEventDefinitions:
         """
         ts = self.redis.hget(self.redis_event_def_key, event_definition_id)
         if not ts:
-            return self.first_evaluation_time()
+            return first_evaluation_time()
         else:
             return float(ts.decode('utf-8'))
 
-    def first_evaluation_time(self):
-        event_definition_evaluation_time_clock_skew_offset = \
-            settings.REDIS['event_definition_evaluation_time_clock_skew_offset']
-        return (datetime.datetime.utcnow() + datetime.timedelta(
-                    seconds=event_definition_evaluation_time_clock_skew_offset)
-                ).timestamp()
+
+def first_evaluation_time():
+    event_definition_evaluation_time_clock_skew_offset = \
+        settings.REDIS['event_definition_evaluation_time_clock_skew_offset']
+    return (datetime.datetime.utcnow() + datetime.timedelta(
+                seconds=event_definition_evaluation_time_clock_skew_offset)
+            ).timestamp()
 
 
 def timestamp_now():

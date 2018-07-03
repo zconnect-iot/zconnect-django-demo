@@ -19,12 +19,29 @@ def load_from_file(modname):
 
 
 def get_action_handlers(name):
+    """Load all action handlers that will be triggered by the given name
+
+    Args:
+        name (str): associated trigger key for action handlers
+
+    Returns:
+        list: List of all action handlers that should be triggered by the given
+            name
+    """
     from .cache import _action_handlers
     logger.debug("Available action handlers: %s", _action_handlers)
     return _action_handlers.get(name)
 
 
 def get_activity_notifier_handler(name):
+    """Get notification handlers for given  name
+
+    Args:
+        name (str): associated trigger key for notifiers
+
+    Returns:
+        list: List of notification handlers for given name
+    """
     from .cache import _activity_notifiers
     logger.debug("Available activity notifiers handlers: %s",
                     _activity_notifiers)

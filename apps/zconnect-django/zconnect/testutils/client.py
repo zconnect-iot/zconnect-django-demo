@@ -11,7 +11,7 @@ from .util import ContextTimer, get_full_route
 
 
 def print_indent(fmt, *args, **kwargs):
-    indented = [re.sub("^", "  ", i, flags=re.MULTILINE) for i in args]
+    indented = [re.sub("^", "  ", str(i), flags=re.MULTILINE) for i in args]
     print(fmt.format(*indented, **kwargs))
 
 

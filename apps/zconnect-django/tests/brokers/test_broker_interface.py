@@ -12,29 +12,6 @@ from zconnect.testutils.factories import EventDefinitionFactory
 IBM = "zconnect.messages.IBMInterface"
 TOPIC = "iot-2/type/{}/id/{}/evt/{}/fmt/json"
 
-class TestParseEvents:
-    def test_parse_ibm_event(self, fakedevice, interface):
-        with mock.patch(IBM + ".connect"):
-            topic = (
-                TOPIC
-                .format("testproduct123", fakedevice.id, "example_category")
-                .encode("utf8")
-            )
-
-            paho_message = MQTTMessage(topic=topic)
-            paho_message.payload = b'{"foo": "bar"}'
-
-            event = Event(paho_message, {"json": jsonCodec})
-
-            zconnect_message = interface.construct_zconnect_message(event)
-
-            assert zconnect_message.device.id == fakedevice.id
-            assert (zconnect_message.device.product.iot_name
-                    == fakedevice.product.iot_name
-                    == "testproduct123")
-            assert zconnect_message.category == "example_category"
-            assert zconnect_message.body == {"foo": "bar"}
-
 
 class TestListener:
     def test_message_callback(self, fakedevice):
@@ -112,11 +89,11 @@ class TestSender:
 
             sender = get_sender()
 
-            sender.to_device("cat", {"a": "b"}, device_id=fakedevice.id,
-                             device_type="type")
+            sender.to_device("cat", {"a": "b"}, device_id=fakedevice.get_iot_id(),
+                             device_type=fakedevice.product.iot_name)
             send.assert_called_once_with("cat", {"a": "b"},
-                                         device_id=fakedevice.id,
-                                         device_type="type")
+                                         device_id=str(fakedevice.id),
+                                         device_type=fakedevice.product.iot_name)
 
             send.reset_mock()
             sender.to_device("cat", {"a": "b"}, device=fakedevice)
@@ -141,11 +118,11 @@ class TestSender:
 
             sender = get_sender()
 
-            sender.as_device("cat", {"a": "b"}, device_id=fakedevice.id,
-                             device_type="type")
+            sender.as_device("cat", {"a": "b"}, device_id=fakedevice.get_iot_id(),
+                             device_type=fakedevice.product.iot_name)
             send.assert_called_once_with("cat", {"a": "b"},
-                                         device_id=fakedevice.id,
-                                         device_type="type")
+                                         device_id=str(fakedevice.id),
+                                         device_type=fakedevice.product.iot_name)
 
             send.reset_mock()
             sender.as_device("cat", {"a": "b"}, device=fakedevice)
@@ -174,12 +151,36 @@ def fix_interface():
         yield interface
 
 
-class TestIBMInterface:
-    def test_send_message(self, fakedevice, interface):
-        with mock.patch(IBM + ".connect"), \
-             mock.patch(IBM + ".publishCommand") as publish:
+class TestParseEvents:
+    def test_parse_ibm_event(self, fakedevice, interface):
+        topic = (
+            TOPIC
+            .format("testproduct123", fakedevice.id, "example_category")
+            .encode("utf8")
+        )
 
-            interface.send_message("cat", {"a": "b"}, device=fakedevice)
+        paho_message = MQTTMessage(topic=topic)
+        paho_message.payload = b'{"foo": "bar"}'
+
+        event = Event(paho_message, {"json": jsonCodec})
+
+        zconnect_message = interface.construct_zconnect_message(event)
+
+        assert zconnect_message.device.id == fakedevice.id
+        assert (zconnect_message.device.product.iot_name
+                == fakedevice.product.iot_name
+                == "testproduct123")
+        assert zconnect_message.category == "example_category"
+        assert zconnect_message.body == {"foo": "bar"}
+
+
+class TestIBMInterface:
+
+    def test_send_message(self, fakedevice, interface):
+        with mock.patch(IBM + ".publishCommand") as publish:
+
+            interface.send_message("cat", {"a": "b"}, device_id=fakedevice.get_iot_id(),
+                device_type=fakedevice.product.iot_name)
             publish.assert_called_once_with("testproduct123",
                                             str(fakedevice.id), "cat", "json",
                                             data={"a": "b"}, qos=1)
@@ -192,14 +193,12 @@ class TestIBMInterface:
                                             qos=1)
 
             publish.reset_mock()
-            interface.send_message("cat", {"a": "b"})
-            publish.assert_not_called()
 
     def test_send_as_device(self, fakedevice, interface):
-        with mock.patch(IBM + ".connect"), \
-             mock.patch(IBM + ".publishEvent") as publish:
+        with mock.patch(IBM + ".publishEvent") as publish:
 
-            interface.send_as_device("cat", {"a": "b"}, device=fakedevice)
+            interface.send_as_device("cat", {"a": "b"}, device_id=fakedevice.get_iot_id(),
+                device_type=fakedevice.product.iot_name)
             publish.assert_called_once_with("testproduct123",
                                             str(fakedevice.id), "cat",
                                             "json-iotf", data={"a": "b"}, qos=1)
@@ -212,12 +211,9 @@ class TestIBMInterface:
                                             data={"a": "b"}, qos=1)
 
             publish.reset_mock()
-            interface.send_as_device("cat", {"a": "b"})
-            publish.assert_not_called()
 
     def test_generate_event_callback(self, fakedevice, interface):
-        with mock.patch(IBM + ".connect"), \
-             mock.patch(IBM + ".construct_zconnect_message") as construct:
+        with mock.patch(IBM + ".construct_zconnect_message") as construct:
 
             mocked = mock.Mock()
 
@@ -227,50 +223,44 @@ class TestIBMInterface:
             callback("test")
             mocked.assert_called_once_with(message)
 
-
     def test_generate_status_callback(self, fakedevice, interface):
-        with mock.patch(IBM + ".connect"):
+        mocked = mock.Mock()
 
-            mocked = mock.Mock()
+        topic = "iot-2/type/testproduct123/id/{}/mon"
+        topic = topic.format(fakedevice.id).encode("utf8")
+        paho_message = MQTTMessage(topic=topic)
+        paho_message.payload = b'{"Action": "Disconnect"}'
+        event = Status(paho_message)
+        callback = interface.generate_status_callback(mocked)
+        callback(event)
 
-            topic = "iot-2/type/testproduct123/id/{}/mon"
-            topic = topic.format(fakedevice.id).encode("utf8")
-            paho_message = MQTTMessage(topic=topic)
-            paho_message.payload = b'{"Action": "Disconnect"}'
-            event = Status(paho_message)
-            callback = interface.generate_status_callback(mocked)
-            callback(event)
-
-            assert mocked.call_count == 1
+        assert mocked.call_count == 1
 
     def test_construct_message(self, fakedevice, interface):
-        with mock.patch(IBM + ".connect"):
+        topic = (
+            TOPIC
+            .format("testproduct123", fakedevice.id, "periodic")
+            .encode("utf8")
+        )
+        paho_message = MQTTMessage(topic=topic)
+        paho_message.payload = b'{"foo": "bar"}'
+        event = Event(paho_message, {"json": jsonCodec})
 
-            topic = (
-                TOPIC
-                .format("testproduct123", fakedevice.id, "periodic")
-                .encode("utf8")
-            )
-            paho_message = MQTTMessage(topic=topic)
-            paho_message.payload = b'{"foo": "bar"}'
-            event = Event(paho_message, {"json": jsonCodec})
+        message = interface.construct_zconnect_message(event)
 
-            message = interface.construct_zconnect_message(event)
-
-            assert message.category == "periodic"
-            assert message.body == {"foo": "bar"}
-            assert message.device == fakedevice
+        assert message.category == "periodic"
+        assert message.body == {"foo": "bar"}
+        assert message.device == fakedevice
 
     def test_construct_message_2(self, fakedevice, interface):
-        with mock.patch(IBM + ".connect"):
-            topic = "iot-2/type/testproduct123/id/{}/mon"
-            topic = topic.format(fakedevice.id).encode("utf8")
-            paho_message = MQTTMessage(topic=topic)
-            paho_message.payload = b'{"Action": "Disconnect"}'
-            event = Status(paho_message)
+        topic = "iot-2/type/testproduct123/id/{}/mon"
+        topic = topic.format(fakedevice.id).encode("utf8")
+        paho_message = MQTTMessage(topic=topic)
+        paho_message.payload = b'{"Action": "Disconnect"}'
+        event = Status(paho_message)
 
-            message_2 = interface.construct_zconnect_message(event)
+        message_2 = interface.construct_zconnect_message(event)
 
-            assert message_2.category == "status"
-            assert message_2.body == {"Action": "Disconnect"}
-            assert message_2.device == fakedevice
+        assert message_2.category == "status"
+        assert message_2.body == {"Action": "Disconnect"}
+        assert message_2.device == fakedevice

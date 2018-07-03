@@ -1,8 +1,12 @@
-from .sender import get_sender, Sender
-from .listener import get_listener, Listener
-from .bases import HandlerBase
-from .broker_interfaces.ibm import IBMInterface
-from .message import Message, get_message_processor
+# pylint: disable=wildcard-import,unused-wildcard-import
+
+from .sender import *  # noqa
+from .listener import *  # noqa
+from .bases import *  # noqa
+from .broker_interfaces.ibm import *  # noqa
+from .message import *  # noqa
+from .schemas import *  # noqa
+
 
 __all__ = [
     "get_sender",
@@ -13,4 +17,5 @@ __all__ = [
     "Sender",
     "Listener",
     "get_message_processor",
+    "verify_message_schema",
 ]

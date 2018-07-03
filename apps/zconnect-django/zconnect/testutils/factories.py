@@ -12,8 +12,8 @@ import factory.fuzzy
 from organizations.models import Organization, OrganizationUser
 
 from zconnect.models import (
-    ActivitySubscription, DeviceUpdateStatus, Event, EventDefinition, Location, OrganizationLogo,
-    Product, ProductFirmware, ProductPreprocessors, ProductTags, UpdateExecution)
+    ActivitySubscription, DeviceState, DeviceUpdateStatus, Event, EventDefinition, Location,
+    OrganizationLogo, Product, ProductFirmware, ProductPreprocessors, ProductTags, UpdateExecution)
 from zconnect.zc_billing.models import Bill, BilledOrganization, BillGenerator
 from zconnect.zc_timeseries.models import DeviceSensor, SensorType, TimeSeriesData
 
@@ -301,4 +301,12 @@ class DeviceEventDefWithActivityFactory(ModelBaseFactory):
     debounce_window = 600
     scheduled = False
     single_trigger = False
+    device = factory.SubFactory(DeviceFactory)
+
+
+class DeviceStateFactory(ModelBaseFactory):
+    class Meta:
+        model = DeviceState
+
+    version = 0
     device = factory.SubFactory(DeviceFactory)

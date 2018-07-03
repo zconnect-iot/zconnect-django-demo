@@ -41,10 +41,11 @@ logger = logging.getLogger(__name__)
 ##########################################
 
 class StubSerializerMixin():
-    """ StubSerializerMixin for use in any Serializers where a stubbed
+    """StubSerializerMixin for use in any Serializers where a stubbed
     response is required. To make the requests symmetrical across request
     types, it intakes stubbed data, does not create or update in
-    the usual manor, and rather returns the instance matching the id """
+    the usual manor, and rather returns the instance matching the id
+    """
     def to_internal_value(self, data):
         if "id" in data:
             return OrderedDict({"id": data["id"]})
@@ -229,7 +230,7 @@ class LocationSerializer(serializers.ModelSerializer):
         # Timezone is calculated automatically
         read_only_fields = ("id", "timezone", "created_at", "updated_at",)
 
-    def validate(self, value):
+    def validate(self, attrs):
         """Update timezone on save/update
 
         If somebody posts with {"latitude": null, "timezone": ""} then this WILL
@@ -237,10 +238,10 @@ class LocationSerializer(serializers.ModelSerializer):
         """
 
         # A latitude or longitude could be 0
-        if value.get("latitude") is not None and value.get("longitude") is not None:
-            value["timezone"] = get_timezone_no_matter_what(
-                value["latitude"],
-                value["longitude"]
+        if attrs.get("latitude") is not None and attrs.get("longitude") is not None:
+            attrs["timezone"] = get_timezone_no_matter_what(
+                attrs["latitude"],
+                attrs["longitude"]
             )
 
             # In the vanishingly rare case that this returns None, this should
@@ -248,11 +249,11 @@ class LocationSerializer(serializers.ModelSerializer):
             # moment we are setting the timezone to UTC. This would only ever
             # happen if the user tried to set up their climair more than 7
             # degrees from land.
-            if value["timezone"] is None:
-                logger.warning("Timezone on location %s set to Etc/UTC since no timezone found", value.get("id", None))
-                value["timezone"] = 'Etc/UTC'
+            if attrs["timezone"] is None:
+                logger.warning("Timezone on location %s set to Etc/UTC since no timezone found", attrs.get("id", None))
+                attrs["timezone"] = 'Etc/UTC'
 
-        return value
+        return attrs
 
 
 class OrganizationLogoSerializer(serializers.ModelSerializer):
@@ -303,42 +304,49 @@ class BaseUserSerializer(serializers.ModelSerializer):
     def get_orgs(self, obj):
         """Get dictionary of all orgs
 
-        Very not optimised
+        Note that the logging statements are in particularly chosen positions to
+        avoid it hitting the database a lot
+
+        See
+        https://www.mail-archive.com/django-users@googlegroups.com/msg67486.html
         """
-        logger.debug("Orgs on object (%s): %s", obj, obj.orgs.all())
+        raw_user_orgs = obj.orgs.all()
+
+        # Converting to a list to log saves it requerying the DB
+        orgs_as_list = [o for o in raw_user_orgs]
+        logger.debug("%d orgs on object (%s): %s", len(raw_user_orgs), obj, orgs_as_list)
 
         def get_orgs_by_type(org_type, serializer):
-            member_of = org_type.objects.filter(pk__in=[i.id for i in obj.orgs.all()])
-            logger.debug("Orgs for %s: %s", org_type, member_of)
+            member_of = org_type.objects.filter(pk__in=[i.id for i in raw_user_orgs])
             serialized = serializer(member_of, many=True).data
+            logger.debug("Orgs for %s: %s", org_type, serialized)
             return serialized
 
         logger.debug("Dumping organizations: %s", self.org_type_map)
 
-        orgs = []
+        serialized_user_orgs = []
         for name, (model, serializer) in self.org_type_map.items():
             for serialized in get_orgs_by_type(model, serializer):
-                orgs.append({
+                serialized_user_orgs.append({
                     "type": name,
                     **serialized
                 })
 
         # Get any extra organizations
         # This is done separately after the fact to avoid duplicates appearing
-        extra = BilledOrganization.objects.exclude(
-            pk__in=[i["id"] for i in orgs]
-        ).filter(
-            pk__in=[i.id for i in obj.orgs.all()]
-        )
-        for instance in extra:
-            orgs.append({
+        extra = [i for i in raw_user_orgs if i.id not in [j["id"] for j in serialized_user_orgs]]
+        serialized_extra = StubBilledOrganizationSerializer(extra, many=True).data
+        logger.debug("Normal organizations: %s", serialized_extra)
+        for s in serialized_extra:
+            s.update({
                 "type": "organization",
-                **StubBilledOrganizationSerializer(instance).data
             })
 
-        logger.debug("Orgs: %s", orgs)
+        serialized_user_orgs.extend(serialized_extra)
 
-        return orgs
+        logger.debug("Orgs: %s", serialized_user_orgs)
+
+        return serialized_user_orgs
 
     def create(self, validated_data):
         UserModel = apps.get_model(settings.AUTH_USER_MODEL)
@@ -347,13 +355,13 @@ class BaseUserSerializer(serializers.ModelSerializer):
         user_obj.save()
         return user_obj
 
-    def validate(self, data):
+    def validate(self, attrs):
         """ Check the password is OK and then run standard validation """
-        groupless_data = data.copy()
-        groupless_data.pop("groups",None)
-        groupless_data.pop("orgs",None)
+        groupless_data = attrs.copy()
+        groupless_data.pop("groups", None)
+        groupless_data.pop("orgs", None)
         user = apps.get_model(settings.AUTH_USER_MODEL)(**groupless_data)
-        password = data.get("password")
+        password = attrs.get("password")
 
         if password:
             try:
@@ -362,7 +370,7 @@ class BaseUserSerializer(serializers.ModelSerializer):
             except ValidationError as exception:
                 raise DRFValidationError({"password": exception.messages})
 
-        return super().validate(data)
+        return super().validate(attrs)
 
 
 class UserSerializerAdmin(BaseUserSerializer):
@@ -479,13 +487,24 @@ class TokenReturnSerializer(serializers.Serializer):
     """Serializes the RESPONSE
 
     See Token model in simplejwt for which ones are actually available"""
-    # This was in bigbird - probably not required seeing as we return 200?
-    # status = serializers.CharField(default="Logged in")
     token = serializers.CharField(allow_blank=False, allow_null=False,
                                   source="__str__")
     token_type = serializers.CharField()
 
+
 class TokenRefreshSlidingSerializer(serializers.Serializer):
+
+    """Similar to the default TokenRefreshSlidingSerializer from
+    rest_framework_simplejwt, but doesn't verify the token when it loads it.
+
+    There are 2 claims in the token, 'exp' and 'refresh_exp'. 'refresh_exp' is
+    the one that is checked to see if this token can be refreshed and it longer
+    than 'exp', so the token might actually be expired even if it is valid to
+    refresh it
+
+    See https://github.com/davesque/django-rest-framework-simplejwt/issues/21
+    """
+
     token = serializers.CharField()
 
     def validate(self, attrs):

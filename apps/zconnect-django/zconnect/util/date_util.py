@@ -7,7 +7,7 @@ class InvalidDates(Exception):
     pass
 
 
-def validate_dates(start=None, end=None, default_period_days=1): #, max_range=None):
+def validate_dates(start=None, end=None, default_period_days=1):
     """
     Takes start, end query parameters and returns valid start, end dates.
 
@@ -22,7 +22,6 @@ def validate_dates(start=None, end=None, default_period_days=1): #, max_range=No
         start (str - bson $date) - Beginning date period to access data
         end (str - bson $date) -  End date period to access date.
         default_period_days (int=1) - how long to search in the past for TS data
-        max_range (TODO) - Constrain date range within a maximum with from start or end.
 
     Raises:
         InvalidDates - if the dates are invalid.

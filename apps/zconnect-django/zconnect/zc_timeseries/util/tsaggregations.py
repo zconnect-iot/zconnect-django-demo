@@ -72,7 +72,7 @@ def aggregate_numpy(raw, aggregation_type, aggregation_factor, expected_samples,
 
     # TODO
     # Could be possible to do this without a loop
-    for bn in range(bins.size):
+    for bn in range(aggregated.size):
         samples = ts_vals[binned==bn+1]
 
         if not len(samples): # pylint: disable=len-as-condition
@@ -163,3 +163,18 @@ aggregation_implementations = {
     "numpy": aggregate_numpy,
     "sql": aggregate_sql,
 }
+
+
+GRAPH_CHOICES = [
+    ("ts_bar", "Bar graph"),
+    ("ts_graph", "Line graph"),
+]
+
+
+AGGREGATION_CHOICES = [
+    ("sum", "Sum values over the aggregation period"),
+    ("mean", "Mean of values over the aggregation period"),
+    ("median", "Median of values over the aggregation period"),
+    ("min", "Minimum value over the aggregation period"),
+    ("max", "Maximum value over the aggregation period"),
+]

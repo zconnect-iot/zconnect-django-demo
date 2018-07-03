@@ -8,7 +8,8 @@ from .views import (
     OrgMembershipByUserViewSet, PasswordResetView, ProductFirmwareViewSet, ProductViewSet,
     TokenRefreshSlidingView, UpdateExecutionViewSet, UserViewSet, health_check)
 from .zc_timeseries.views import (
-    DeviceSensorViewSet, SensorTypeViewSet, TimeSeriesDataViewSet, TimeseriesHTTPIngressViewSet)
+    DeviceSensorViewSet, SensorTypeViewSet, TimeSeriesDataArchiveViewSet, TimeSeriesDataViewSet,
+    TimeseriesHTTPIngressViewSet)
 
 #from rest_framework_simplejwt.views import TokenRefreshSlidingView
 
@@ -31,6 +32,12 @@ device_router.register(
     TimeSeriesDataViewSet,
     parents_query_lookups=['sensor__device'],
     base_name="data"
+)
+device_router.register(
+    r'data_archive',
+    TimeSeriesDataArchiveViewSet,
+    parents_query_lookups=['sensor__device'],
+    base_name="data_archive"
 )
 device_router.register(
     r'events',

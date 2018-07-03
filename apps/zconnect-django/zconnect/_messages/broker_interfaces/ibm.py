@@ -29,78 +29,39 @@ class IBMInterface(Client):
         for i in range(10):
             try:
                 self.connect()
-            except: # pylint: disable=broad-except,bare-except
+            except:  # pylint: disable=broad-except,bare-except
                 if i >= 9:
                     raise
                 time.sleep(i)
             else:
                 break
 
-    def _resolve_device(self, device=None, device_id=None, device_type=None):
-        if device:
-            if device_id or device_type:
-                logger.warning("Message send method was passed a device and " \
-                               "separate device_id and device_type " \
-                               "parameters. The device takes priority over " \
-                               "the device_id and device_type.")
-            device_id = device.get_iot_id()
-            device_type = device.product.iot_name
+    def send_message(self, category, body, device_id, device_type):
+        """ Send a message to a device.
 
-        if not device_id or not device_type:
-            logger.warning("Tried to send a message to a device but neither " \
-                           "device nor incoming message was provided")
-            return (None, None)
+        See documentation for sender for arguments.
 
-        return (device_id, device_type)
-
-    def send_message(self, category, body, device_id=None, device_type=None,
-                     device=None):
-        """ Send a message to a device. Pass either the device id and type, or
-            a device object, the message category (event type, in Watson lingo)
-            and the message body. This constructs the message and sends it to
-            the device.
-
-        Args:
-            category (string) The message type, typically "settings"
-            body (dict) The dictionary to send to the device. Note that
-                publishCommand will add a timestamp.
-            device_id (string or int) The id of the device to send to
-            device_type (string) The type of the device to send to (the
-                iot_name of the device's product)
-            device (settings.ZCONNECT_DEVICE_MODEL) The device to send to
+        This expects that the device has already been resolved
         """
 
-        (d_id, d_type) = self._resolve_device(device, device_id, device_type)
-        if not d_id or not d_type:
-            return
         logger.info("sending command as %s, with type %s, message %s",
-                    d_id, d_type, str(body))
-        res = self.publishCommand(d_type, d_id, category, "json", data=body,
+                    device_id, device_type, str(body))
+        res = self.publishCommand(device_type, device_id, category, "json", data=body,
                                   qos=1)
 
         if not res:
             logger.warning("Unable to send command")
 
-    def send_as_device(self, category, body, device_id=None, device_type=None,
-                       device=None):
-        """ Send an event as if it were from a device. Requires either
-            device_id and device_type or device.
+    def send_as_device(self, category, body, device_id, device_type):
+        """ Send an event as if it were from a device.
 
-        Args:
-            category (string) The message type, typically "settings"
-            body (dict) The dictionary to send to the device. Note that
-                publishCommand will add a timestamp.
-            device_id (string or int) The id of the device to send to
-            device_type (string) The type of the device to send to (the
-                iot_name of the device's product)
-            device (settings.ZCONNECT_DEVICE_MODEL) The device to send to
+        See documentation for sender for arguments.
+
+        This expects that the device has already been resolved
         """
-        (d_id, d_type) = self._resolve_device(device, device_id, device_type)
-        if not d_id or not d_type:
-            return
         logger.info("sending event as device with id %s, type %s and body %s",
-                    d_id, d_type, str(body))
-        res = self.publishEvent(d_type, d_id, category, "json-iotf", data=body,
+                    device_id, device_type, str(body))
+        res = self.publishEvent(device_type, device_id, category, "json-iotf", data=body,
                                 qos=1)
 
         if not res:

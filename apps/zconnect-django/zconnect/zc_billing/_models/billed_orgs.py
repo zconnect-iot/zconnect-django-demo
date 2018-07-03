@@ -2,6 +2,7 @@ import datetime
 import itertools
 import logging
 
+from dateutil.relativedelta import relativedelta
 from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -18,7 +19,7 @@ from zconnect.zc_timeseries.models import DeviceSensor, TimeSeriesData
 from .bills import Bill
 
 logger = logging.getLogger(__name__)
-one_day = datetime.timedelta(days=1)
+one_day = relativedelta(days=1)
 
 
 class BilledOrganization(Organization):

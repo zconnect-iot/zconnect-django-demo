@@ -1,14 +1,17 @@
-from datetime import datetime
+import copy
+import datetime
 import logging
 from typing import Dict, List
 
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
-from django.db import models
+from django.db import IntegrityError, models, transaction
 from django.db.models.functions import window
 from django.utils.translation import ugettext_lazy as _
 from organizations.models import Organization
 
+from zconnect.messages import Message, verify_message_schema
+from zconnect.util import exceptions
 from zconnect.util.device_context import AggregatedContext
 from zconnect.util.event_condition_parser import Condition
 
@@ -69,7 +72,6 @@ class AbstractDevice(EventDefinitionMixin, ModelBase):
     def __str__(self):
         # pylint: disable=missing-format-attribute
         return '{self.name} ({self.product}, id: {self.id})'.format(self=self)
-
 
     def get_iot_id(self):
         """Gets the watson iot device id. This is always a string of the
@@ -210,7 +212,7 @@ class AbstractDevice(EventDefinitionMixin, ModelBase):
         # determine the debounce window. Get any events of this
         # type which have triggered within the window.
         if debounce:
-            debounced_time = datetime.utcnow() - \
+            debounced_time = datetime.datetime.utcnow() - \
                              relativedelta(seconds=event_definition.debounce_window)
             count = Event.objects.filter(
                 device=self,
@@ -388,7 +390,7 @@ class AbstractDevice(EventDefinitionMixin, ModelBase):
         if not context:
             ts_data = self.get_latest_ts_data()
             context = {k: v.value for k,v in ts_data.items()}
-            context["ts"] =  time if time else datetime.utcnow()
+            context["ts"] =  time if time else datetime.datetime.utcnow()
 
         return AggregatedContext(self, context, agg_time=time)
 
@@ -422,7 +424,7 @@ class AbstractDevice(EventDefinitionMixin, ModelBase):
             resolution = int(resolution)
 
         if not data_end:
-            data_end = datetime.utcnow()
+            data_end = datetime.datetime.utcnow()
 
         sensors = DeviceSensor.objects.filter(
             device=self,
@@ -447,7 +449,7 @@ class AbstractDevice(EventDefinitionMixin, ModelBase):
             # Default to 10 minutes if not in settings file
             threshold_mins = 10
         online = False
-        now = datetime.utcnow()
+        now = datetime.datetime.utcnow()
 
         ts_data = self.get_latest_ts_data()
         for sensor in ts_data:
@@ -471,6 +473,199 @@ class AbstractDevice(EventDefinitionMixin, ModelBase):
         are to be used for notifying actions on this organization.
         """
         return self.orgs.all()
+
+    def get_latest_state(self):
+        """Get latest DeviceState
+
+        Note that this returns both the reported and the desired state which may
+        be different - call latest_state.delta to get the differences
+        """
+        from .states import DeviceState
+        try:
+            return DeviceState.objects.filter(device=self).latest()
+        except DeviceState.DoesNotExist:
+            logger.debug("Device has no state yet, starting at version 0", exc_info=True)
+            initial_state = DeviceState(
+                device=self,
+                version=0,
+            )
+            initial_state.save()
+            return initial_state
+
+    def _attempt_device_state_update(self, changing, new_state, error_on_other_change=False):
+        """Actually attempt a state update
+
+        This will try to save the new state 3 times then error out to avoid an
+        infinite loop if there's 2 parts of the system which are responding to
+        one another by updating the state repeatedly.
+
+        See documentation for update_reported_state and update_desired_state for
+        arguments
+        """
+        if changing == "desired":
+            other = "reported"
+        elif changing == "reported":
+            other = "desired"
+        else:
+            raise Exception("Invalid value for 'changing' passed")
+
+        latest_state = self.get_latest_state()
+        version = latest_state.version + 1
+
+        from .states import DeviceState
+
+        for i in range(3): # pylint: disable=unused-variable
+            try:
+                with transaction.atomic():
+                    new_latest_state = DeviceState(
+                        device=self,
+                        version=version,
+                        **{
+                            changing: new_state,
+                            other: getattr(latest_state, other),
+                        }
+                    )
+
+                    logger.debug("Updating %s state for %s with %s (version %s)", changing, self.pk, new_state, version)
+
+                    new_latest_state.save()
+            except IntegrityError as e:
+                logger.warning("Device state changed when trying to save")
+                latest_state = self.get_latest_state()
+
+                if getattr(latest_state, other) != getattr(new_latest_state, other):
+                    if error_on_other_change:
+                        logger.error("State changed while trying to update it")
+                        raise exceptions.StateConflictError from e
+                    else:
+                        logger.debug("%s state changed - ignoring", other)
+
+                if getattr(latest_state, changing) == getattr(new_latest_state, changing):
+                    version = latest_state.version + 1
+                else:
+                    logger.error("%s state was updated somewhere else while trying to update it here", changing)
+                    raise exceptions.StateConflictError from e
+            else:
+                logger.debug("Change state successfully")
+                break
+        else:
+            # fallthrough
+            logger.error("Could not set new %s state after 3 attempts", changing)
+            raise exceptions.StateConflictError
+
+        return new_latest_state
+
+    def update_reported_state(self, new_state, verify=False):
+        """Given a new reported state from a device, create a new DeviceState
+        object in the database
+
+        If the reported state changes between us reading the last state and us
+        trying to save a new state, there is another race condition somewhere
+        which is a fairly fatal error which we can't do anything about. We don't
+        care if the desired state changes though, as that should be handled
+        somewhere else or on the device
+
+        Args:
+            new_state (dict): The 'reported' state from the device. This should
+                be the RAW state, ie no 'state' or 'reported' key
+            verify (bool): If True, verification will be done to make sure it
+                matches the expected Product state layout. If not, assume it has
+                already been validated.
+
+        Raises:
+            BadMessageSchemaError: If verify is True and message validation
+                fails
+
+        Returns:
+            DeviceState: new state document
+        """
+
+        if verify:
+            wrapped = {
+                "body": {
+                    "state": {
+                        "reported": new_state
+                    },
+                },
+                "device": self.pk,
+                "category": "reported_state",
+                "timestamp": datetime.datetime.utcnow(),
+            }
+            message = Message.from_dict(wrapped)
+            verify_message_schema(message)
+
+        return self._attempt_device_state_update("reported", new_state)
+
+    def update_reported_state_from_message(self, message):
+        """Utility to update device state directly from a Message"""
+        return self.update_reported_state(new_state=message.body, verify=True)
+
+    def update_desired_state(self, new_state, verify=True,
+            error_on_reported_change=False):
+        """Given a new desired state for a device, create a new DeviceState
+        object in the database
+
+        If the state update succeeds, it will send a message to the device to
+        tell it that it should try and change to the desired state
+
+        If the state is updated but it raises an integrity error, another
+        thread/process might have changed the state. In this case, if it is just
+        the device reporting that it's state has changed and
+        error_on_reported_change is True, raise an error. This will always be
+        raised if the desired state changes.
+
+        If the reported state changes but error_on_reported_change is False,
+        just set the new state document to contain that reported state and
+        return to the user. note that this does hide information from the
+        developer, but the reported state change should be handled in another
+        process anyway.
+
+        Todo:
+            What if it can save to the DB, but the MQTT message can't be sent?
+            If we send the message before saving the state there is a race
+            condition, but if we save the state before sending we need to buffer
+            the 'change state' message somehow so it can be sent
+
+        Args:
+            new_state (dict): The new 'desired' state for the device. This should
+                be the RAW state, ie no 'state' or 'reported' key
+            verify (bool): If True, verification will be done to make sure it
+                matches the expected Product state layout. If not, assume it has
+                already been validated.
+
+        Raises:
+            BadMessageSchemaError: If verify is True and message validation
+                fails
+            StateConflictError: If the state is changed elsewhere while trying
+                to save a new state (according to rules described above)
+
+        Returns:
+            DeviceState: new state document
+        """
+
+        wrapped = {
+            "body": {
+                "state": {
+                    "desired": new_state
+                },
+            },
+            "device": self.pk,
+            "category": "desired_state",
+            "timestamp": datetime.datetime.utcnow(),
+        }
+
+        if verify:
+            v_dict = copy.deepcopy(wrapped)
+            v_dict["body"]["state"]["reported"] = v_dict["body"]["state"].pop("desired")
+            v_msg = Message.from_dict(v_dict)
+            verify_message_schema(v_msg)
+
+        new_latest_state = self._attempt_device_state_update("desired", new_state, error_on_reported_change)
+
+        message = Message.from_dict(wrapped)
+        message.send_to_device()
+
+        return new_latest_state
 
 
 class Device(AbstractDevice):

@@ -14,7 +14,7 @@ from rest_framework.test import APIClient
 
 from zconnect._messages.message import Message
 from zconnect.testutils.util import weeks_ago
-from zconnect.zc_timeseries.models import TimeSeriesData
+from zconnect.zc_timeseries.models import TimeSeriesData, TimeSeriesDataArchive
 
 from .client import BBTestClient, TavernClient
 from .factories import (
@@ -256,6 +256,24 @@ def fix_fake_ts_data(fakesensor, db):
 
     return tsd
 
+
+@pytest.fixture(name="fake_ts_archive_data")
+def fix_fake_ts_archive_data(fakesensor, db):
+    now = datetime.datetime.utcnow()
+
+    tsd = TimeSeriesDataArchive.objects.bulk_create([
+        TimeSeriesDataArchive(
+            start=now - relativedelta(weeks=i+1),
+            end=now - relativedelta(weeks=i),
+            aggregation_type=at,
+            sensor=fakesensor,
+            value=sin(i),
+        ) for i in range(8) for at in ["mean", "sum"]
+    ])
+
+    return tsd
+
+
 @pytest.fixture(name="simple_ts_data")
 def fix_simple_ts_data(fakesensor, db):
     """Generate simple ts data
@@ -338,11 +356,11 @@ def fix_fake_bill_old(db, fake_bill_generator, fakedevice):
 
 @pytest.fixture
 def first_event_evaluation_datetime_min():
-    def min_eval_time(fake_self):
+    def min_eval_time():
         # 1970-01-01T01:00
         return datetime.datetime(1970,1,1,1).timestamp()
 
-    with patch('zconnect.util.redis_util.RedisEventDefinitions.first_evaluation_time', min_eval_time):
+    with patch('zconnect.util.redis_util.first_evaluation_time', min_eval_time):
         yield
 
 

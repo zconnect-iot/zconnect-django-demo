@@ -50,9 +50,9 @@ def evaluate_event_definitions(device, ts_data, redis_evaluation_times, event_de
 
     Args:
         device (Device): Device to evaluate definitions for
+        ts_data (TimeSeriesData): Latest TS data for device
         redis_evaluation_times (RedisEventDefinitions): event definition evaluation times stored in redis
         event_definitions (None, optional): extra event definitions to evaluate
-
     """
     context = device.get_context()
 
@@ -100,7 +100,8 @@ def check_device_online_status(*devices):
 @shared_task
 def trigger_scheduled_events():
     """Gets all scheduled tasks which should be triggered
-        at the current time"""
+    at the current time
+    """
 
     logger.info("Running scheduled event definition evaluations")
 

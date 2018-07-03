@@ -7,6 +7,7 @@ from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import FieldError, ObjectDoesNotExist
 from django.http import Http404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -19,11 +20,14 @@ from zconnect.tasks import process_message
 from zconnect.util import exceptions
 from zconnect.util.date_util import InvalidDates, validate_dates
 from zconnect.zc_timeseries.exceptions import DeviceLookupException
-from zconnect.zc_timeseries.models import DeviceSensor, SensorType, TimeSeriesData
+from zconnect.zc_timeseries.models import (
+    DeviceSensor, SensorType, TimeSeriesData, TimeSeriesDataArchive)
+from zconnect.zc_timeseries.util.tsaggregations import AGGREGATION_CHOICES
 
+from .filters import TSArchiveFilter
 from .serializers import (
-    DeviceSensorSerializer, SensorTypeSerializer, TimeSeriesDataSerializer,
-    TimeseriesHTTPIngressSerializer)
+    DeviceSensorSerializer, SensorTypeSerializer, TimeSeriesDataArchiveSerializer,
+    TimeSeriesDataSerializer, TimeseriesHTTPIngressSerializer)
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +60,6 @@ class TimeSeriesDataViewSet(NestedViewSetMixin, viewsets.ModelViewSet):
             logger.debug("No timeseries data app installed, returning")
             raise Http404
 
-        device_pk = parent_lookup_sensor__device
-        device = apps.get_model(settings.ZCONNECT_DEVICE_MODEL).objects.get(pk=device_pk)
-
         try:
             start, end = validate_dates(
                 self.request.query_params.get("start"),
@@ -66,6 +67,10 @@ class TimeSeriesDataViewSet(NestedViewSetMixin, viewsets.ModelViewSet):
             )
         except InvalidDates as e:
             raise exceptions.BadRequestError("Invalid dates") from e
+
+        device_pk = parent_lookup_sensor__device
+        Device = apps.get_model(settings.ZCONNECT_DEVICE_MODEL)
+        device = Device.objects.get(pk=device_pk)
 
         resolution = self.request.query_params.get("resolution")
 
@@ -80,6 +85,31 @@ class TimeSeriesDataViewSet(NestedViewSetMixin, viewsets.ModelViewSet):
             serialized[sensor_name] = serializer.data
 
         return Response(serialized)
+
+
+class TimeSeriesDataArchiveViewSet(NestedViewSetMixin, viewsets.ModelViewSet):
+    queryset = TimeSeriesDataArchive.objects.all()
+    serializer_class = TimeSeriesDataArchiveSerializer
+    http_method_names = ['get']
+    permission_classes = [IsAuthenticated,]
+
+    filter_backends = [
+        DjangoFilterBackend
+    ]
+    filter_class = TSArchiveFilter
+    filter_fields = ["start", "end", "aggregation_type"]
+
+    def list(self, request, *args, **kwargs):
+        aggregation_type = self.request.query_params.get("aggregation_type")
+
+        if aggregation_type:
+            if aggregation_type not in [i[0] for i in AGGREGATION_CHOICES]:
+                return Response(
+                    {"detail": "'{}' is not a valid aggregation_type".format(aggregation_type)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        return super().list(request, *args, **kwargs)
 
 
 class TimeseriesHTTPIngressViewSet(viewsets.ViewSet):
@@ -120,6 +150,21 @@ class TimeseriesHTTPIngressViewSet(viewsets.ViewSet):
         )
 
     def get_unknown_device(self, field, field_value):
+        """Because we don't know how the devices are going to identify
+        themselves, some kind of unique identifier is sent in the request. Here
+        we look up the device based on the given field.
+
+        Args:
+            field (str): field name on device to query on
+            field_value (str): value of field to look up device
+
+        Returns:
+            Device: associated device
+
+        Raises:
+            DeviceLookupException: The given field did not exist, or a device
+                with the given value for that field did not exist
+        """
         filters = {
             field: field_value
         }

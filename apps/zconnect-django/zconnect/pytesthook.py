@@ -318,7 +318,7 @@ loggers:
             }
         }
 
-    DATABASES["TEST"] = DATABASES["test"] = DATABASES["default"]
+    # DATABASES["TEST"] = DATABASES["test"] = DATABASES["default"]
 
     settings.update(DATABASES=DATABASES)
 

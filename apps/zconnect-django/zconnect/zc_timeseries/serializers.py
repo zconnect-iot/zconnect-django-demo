@@ -3,22 +3,34 @@ from math import isnan
 # from rest_framework import permissions
 from rest_framework import serializers
 
-from zconnect.zc_timeseries.models import DeviceSensor, SensorType, TimeSeriesData
+from zconnect.zc_timeseries.models import (
+    DeviceSensor, SensorType, TimeSeriesData, TimeSeriesDataArchive)
 
 
-class TimeSeriesDataSerializer(serializers.ModelSerializer):
-    value = serializers.SerializerMethodField()
-
-    class Meta:
-        model = TimeSeriesData
-        fields = ("ts", "value",)
-        read_only_fields = ("ts", "value",)
-
+class TSSerializerMixin:
     def get_value(self, obj):
         if isnan(obj.value):
             return None
         else:
             return obj.value
+
+
+class TimeSeriesDataSerializer(TSSerializerMixin, serializers.ModelSerializer):
+    value = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TimeSeriesData
+        fields = ("ts", "value",)
+        read_only_fields = fields
+
+
+class TimeSeriesDataArchiveSerializer(TSSerializerMixin, serializers.ModelSerializer):
+    value = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TimeSeriesDataArchive
+        fields = ("value", "start", "end", "aggregation_type")
+        read_only_fields = fields
 
 
 class SensorTypeSerializer(serializers.ModelSerializer):

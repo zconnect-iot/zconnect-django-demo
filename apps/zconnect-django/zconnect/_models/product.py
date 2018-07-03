@@ -8,6 +8,11 @@ from .mixins import EventDefinitionMixin
 class Product(EventDefinitionMixin, ModelBase):
     """Defines a type of product
 
+    Note that both the state serializer and deserializer can be blank. Some
+    products might never have to serialize the state and some might not care
+    about verifying the schema when deserializing it (though this is highly
+    inadvisable).
+
     Attributes:
         battery_voltage_critical (float): What voltage of battery is considered
             critical for this device (eg, possibly used to trigger a push
@@ -37,6 +42,10 @@ class Product(EventDefinitionMixin, ModelBase):
         tags (list(str)): generic tags for product
         url (str): Product (or manufacturer) homepage
         version (str): Release of the product, hopefully a semver...?
+
+        state_serializer_name (str): location of serializer to convert state
+            from zconnect.DeviceState to serialization format (json, msgpack,
+            ...)
     """
     name = models.CharField(max_length=100)
     iot_name = models.CharField(max_length=100)
@@ -44,6 +53,8 @@ class Product(EventDefinitionMixin, ModelBase):
     manufacturer = models.CharField(max_length=50)
     url = models.CharField(max_length=200, blank=True)
     support_url = models.CharField(max_length=200, blank=True)
+
+    state_serializer_name = models.CharField(max_length=200, blank=True)
 
     version = models.CharField(max_length=50)
     previous_version = models.ForeignKey("Product", models.CASCADE, blank=True, null=True)

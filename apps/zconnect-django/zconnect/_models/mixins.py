@@ -8,12 +8,7 @@ class EventDefinitionMixin:
     it
 
     currently only works on Devices and Products
-
-    Attributes:
-        event_defs (EventDefinition): List of event definitions that can be
-            triggered on this Product/Device
     """
-
 
     method_override_weight = 10
 

@@ -6,6 +6,13 @@ import os
 
 class GoogleFormatter(Formatter):
 
+    """Logging Formatter which can be used to output logs to stderr in a format
+    that can be parsed by google logging
+
+    Note that any datefmt passed in to the setup will be ignored as this needs
+    to be in a specific format to be recognised by google.
+    """
+
     levels = {
         logging.DEBUG: "D",
         logging.INFO: "I",

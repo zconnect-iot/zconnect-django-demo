@@ -22,7 +22,6 @@ class Location(ModelBase):
         region (str): country-specific 'region' (eg, 'southwest')
         street_address (str): first line of street address (eg, '123 fake street')
         address (Address): Address of this location
-        state (dict): ???
     """
     name = models.CharField(max_length=100, blank=True, null=True)
     timezone = models.CharField(max_length=50, blank=True, null=True)
@@ -43,8 +42,6 @@ class Location(ModelBase):
     poboxno = models.CharField(max_length=50, blank=True, null=True)
     postalcode = models.CharField(max_length=20)
     street_address = models.CharField(max_length=100, blank=True, null=True)
-
-    # state = DynamicField(default=defaultState)
 
     class Meta:
         ordering = ["country"]

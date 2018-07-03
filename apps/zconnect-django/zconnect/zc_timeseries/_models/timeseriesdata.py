@@ -1,5 +1,7 @@
 from django.db import models
 
+from zconnect.zc_timeseries.util.tsaggregations import AGGREGATION_CHOICES
+
 
 class TimeSeriesData(models.Model):
     """Copied from django-timeseries, modified so we can use the primary key as
@@ -20,8 +22,9 @@ class TimeSeriesData(models.Model):
         "owning" model and TIMESERIES_INTERVAL timedelta instance.
 
     Attributes:
-        ts (datetime): Timestamp of this data
         sensor (DeviceSensor): related sensor object on a specific device
+        ts (datetime): Timestamp of this data
+        value (float): sensor reading
     """
 
     ts = models.DateTimeField(db_index=True)
@@ -39,3 +42,32 @@ class TimeSeriesData(models.Model):
 
     def __str__(self):
         return "{}: {}@{}".format(self.sensor.sensor_type.sensor_name, self.value, self.ts)
+
+
+class TimeSeriesDataArchive(models.Model):
+    """Archive which can be used to store lower resolution, aggregated data
+
+    It may be useful to add a count of aggregated values in some situations.
+
+    Attributes:
+        aggregation_type (str): How this data was aggregated - eg 'min', 'max'
+        start (datetime): start of aggregation period
+        end (datetime): end of aggregation period
+        sensor (DeviceSensor): Associated device sensor object
+        value (float): result of aggregation
+    """
+
+    start = models.DateTimeField()
+    end = models.DateTimeField()
+    sensor = models.ForeignKey("DeviceSensor", models.CASCADE, related_name="archive_data")
+    aggregation_type = models.CharField(max_length=20, choices=AGGREGATION_CHOICES)
+    value = models.FloatField()
+
+    class Meta:
+        ordering = ('-end', )
+        get_latest_by = 'end'
+        unique_together = ("start", "end", "sensor", "aggregation_type")
+
+        indexes = [
+            models.Index(fields=["sensor", "-end"], name="end_and_sensor_idx"),
+        ]

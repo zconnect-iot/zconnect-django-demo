@@ -5,8 +5,10 @@ from math import sin
 from dateutil.relativedelta import relativedelta
 import pytest
 
+from zconnect.testutils.helpers import paginated_body
 from zconnect.testutils.factories import SensorTypeFactory, TimeSeriesDataFactory
 from zconnect.testutils.util import model_to_dict
+from zconnect.zc_timeseries.serializers import TimeSeriesDataArchiveSerializer
 from zconnect.zc_timeseries.models import TimeSeriesData
 
 
@@ -307,3 +309,157 @@ class TestTimeseriesHTTPIngressEndpoint:
                                                 expected,
                                                 path_params=path_params
                                                 )
+
+
+@pytest.mark.usefixtures("joeseed_login")
+class TestArchiveEndpoint:
+    route = "/api/v3/devices/{device_id}/data_archive/"
+
+    def test_get_no_archived_data(self, fakedevice, testclient):
+        path_params = {
+            "device_id": fakedevice.id,
+        }
+
+        expected = {
+            "status_code": 200,
+            "body": paginated_body([])
+        }
+
+        testclient.get_request_test_helper(expected, path_params=path_params)
+
+    def test_get_archived_data_no_filter(self, fakedevice, testclient, fake_ts_archive_data):
+        """should return all data for this device"""
+        path_params = {
+            "device_id": fakedevice.id,
+        }
+        query_params = {
+            # Make sure it's all returned at once so we can check easier
+            "page_size": len(fake_ts_archive_data)
+        }
+
+        serialized = TimeSeriesDataArchiveSerializer(instance=fake_ts_archive_data, many=True).data
+
+        expected = {
+            "status_code": 200,
+            "body": paginated_body(serialized),
+        }
+
+        testclient.get_request_test_helper(expected, path_params=path_params, query_params=query_params)
+
+    @pytest.mark.parametrize("aggregation_type", (
+        "sum",
+        "mean",
+    ))
+    def test_get_archived_data_filter_by_aggregation_type(self, fakedevice, testclient, fake_ts_archive_data,
+            aggregation_type):
+        """should return all data for this device"""
+
+        trimmed_archive_data = [i for i in fake_ts_archive_data if i.aggregation_type == aggregation_type]
+
+        path_params = {
+            "device_id": fakedevice.id,
+        }
+        query_params = {
+            # Make sure it's all returned at once so we can check easier
+            "page_size": len(trimmed_archive_data),
+            "aggregation_type": aggregation_type,
+        }
+
+        serialized = TimeSeriesDataArchiveSerializer(instance=trimmed_archive_data, many=True).data
+
+        expected = {
+            "status_code": 200,
+            "body": paginated_body(serialized),
+        }
+
+        testclient.get_request_test_helper(expected, path_params=path_params, query_params=query_params)
+
+    def test_get_archived_data_filter_by_aggregation_type_no_archive(self, fakedevice, testclient,
+            fake_ts_archive_data):
+        """Correct aggregation type, but no data"""
+
+        aggregation_type = "min"
+
+        path_params = {
+            "device_id": fakedevice.id,
+        }
+        query_params = {
+            "aggregation_type": aggregation_type,
+        }
+
+        expected = {
+            "status_code": 200,
+            "body": paginated_body([]),
+        }
+
+        testclient.get_request_test_helper(expected, path_params=path_params, query_params=query_params)
+
+    def test_get_archived_data_filter_by_aggregation_type_bad_type(self, fakedevice, testclient, fake_ts_archive_data):
+        """Nonexistent aggregation_type should raise a 400"""
+        aggregation_type = "skdof"
+
+        path_params = {
+            "device_id": fakedevice.id,
+        }
+        query_params = {
+            "aggregation_type": aggregation_type,
+        }
+
+        expected = {
+            "status_code": 400,
+            "body": {
+                "detail": "'skdof' is not a valid aggregation_type"
+            }
+        }
+
+        testclient.get_request_test_helper(expected, path_params=path_params, query_params=query_params)
+
+    def test_filter_time(self, fakedevice, testclient, fake_ts_archive_data):
+        """Only get archive data from the 2 weeks"""
+
+        now = datetime.datetime.utcnow()
+        start_date = now - datetime.timedelta(days=15)
+
+        trimmed_archive_data = [i for i in fake_ts_archive_data if i.start >= start_date]
+
+        path_params = {
+            "device_id": fakedevice.id,
+        }
+        query_params = {
+            # "page_size": len(trimmed_archive_data),
+            "start__gt": start_date.isoformat(),
+        }
+
+        serialized = TimeSeriesDataArchiveSerializer(instance=trimmed_archive_data, many=True).data
+
+        expected = {
+            "status_code": 200,
+            "body": paginated_body(serialized),
+        }
+
+        testclient.get_request_test_helper(expected, path_params=path_params, query_params=query_params)
+
+    def test_filter_time_nothing(self, fakedevice, testclient, fake_ts_archive_data):
+        """Try to get archive data from the distant past"""
+
+        now = datetime.datetime.utcnow()
+        start_date = now - datetime.timedelta(weeks=15)
+
+        trimmed_archive_data = [i for i in fake_ts_archive_data if i.start <= start_date]
+
+        path_params = {
+            "device_id": fakedevice.id,
+        }
+        query_params = {
+            # "page_size": len(trimmed_archive_data),
+            "start__lt": start_date.isoformat(),
+        }
+
+        serialized = TimeSeriesDataArchiveSerializer(instance=trimmed_archive_data, many=True).data
+
+        expected = {
+            "status_code": 200,
+            "body": paginated_body(serialized),
+        }
+
+        testclient.get_request_test_helper(expected, path_params=path_params, query_params=query_params)

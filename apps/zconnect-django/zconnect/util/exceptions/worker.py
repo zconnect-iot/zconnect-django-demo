@@ -2,8 +2,6 @@
 class WorkerError(Exception):
     """Base class for worker errors - celery or message listener. No HTTP
     response because they aren't associated with a request."""
-    raise_context = "watson worker"
-    log_level = "info"
 
 
 class WorkerFoundNoSuchDevice(WorkerError):
@@ -61,3 +59,11 @@ class WorkerSMSError(WorkerError):
     """
     Raised when there is an error sending an SMS message.
     """
+
+
+class BadMessageSchemaError(WorkerError):
+    """A message with an invalid schema was sent from the device"""
+
+
+class StateConflictError(WorkerError):
+    """Tried to update device state but it was updated in the meantime"""

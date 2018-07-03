@@ -1,13 +1,13 @@
-from datetime import datetime
+import datetime
 import logging
 
 from django.conf import settings
 
 from zconnect.activity_stream import device_activity
+from zconnect.messages import Message
 from zconnect.models import Event, EventDefinition
 from zconnect.registry import decorators, get_action_handlers
-from zconnect.util import comms
-from zconnect.util.exceptions import WorkerFoundNoSuchDevice
+from zconnect.util import comms, exceptions
 from zconnect.zc_timeseries.util.ts_util import insert_timeseries_data
 
 logger = logging.getLogger(__name__)
@@ -75,6 +75,10 @@ def process(message, listener):
 
     Params:
         status (ibmiotf.Status) - the status object.
+
+    Args:
+        message (Message): zconnect Message object that triggered this handler
+        listener (Listener): zconnect message Listener that called this handler
     """
     logger.debug('Connection message status %s', message)
     if message.body == 'Connect':
@@ -90,7 +94,7 @@ def process(message, listener):
     try:
         device = message.device
         device.online = online
-        device.last_seen = datetime.utcnow()
+        device.last_seen = datetime.datetime.utcnow()
         device.save()
         logger.info(
             'Connection message success (device: %s) (action: %s)',
@@ -107,15 +111,17 @@ def process(message, listener):
         #     listener.broker_interface.send_message("settings", body, device=device)
         #     logger.info("Sent settings message to {}".format(str(device.id)))
 
-    except WorkerFoundNoSuchDevice:
+    except exceptions.WorkerFoundNoSuchDevice:
         logger.exception("unable to update online status for device")
+
 
 @decorators.action_handler(name="activity")
 def activity_stream_handler(message, listener=None, action_args=None, event_def=None):
     device_activity(message.device, action_args)
 
+
 @decorators.activity_notifier_handler(name="email")
-def user_email_activity_notifier(user, action, device=False, \
+def user_email_activity_notifier(user, action, device=False,
             organization=False, activity_stream=False):
 
     subject = "Alert from {d.product.name} {d.id} in {o.name}".format(
@@ -153,6 +159,7 @@ def user_email_activity_notifier(user, action, device=False, \
                      substitutions)
     return True
 
+
 @decorators.activity_notifier_handler(name="sms")
 def user_sms_activity_notifier(user, action, device=False, \
             organization=False, activity_stream=False):
@@ -168,3 +175,60 @@ def user_sms_activity_notifier(user, action, device=False, \
     body = "Alert from {sn}, in {o.name}: {msg}".format(
         sn=site_name, o=main_org, msg=action.description)
     comms.send_sms([user], body, from_phone=site_name)
+
+
+@decorators.message_handler(name="report_state")
+def device_state_report_handler(message, listener):
+    """Handle a device trying to report it's state
+
+    Todo:
+        AWS iot has other error codes for this, copied from HTTP error codes. we
+        could do that as well
+    """
+    try:
+        message.device.update_reported_state_from_message(message)
+    except exceptions.BadMessageSchemaError:
+        logger.exception("Device tried to update state with incorrect schema")
+
+        wrapped = {
+            "body": {
+                "status": "failure",
+                "error": "Invalid message schema",
+            },
+            "device": message.device,
+            "category": "reported_state_failure",
+            "timestamp": datetime.datetime.utcnow(),
+        }
+        response = Message.from_dict(wrapped)
+        response.send_to_device()
+
+        raise
+    except Exception:
+        logger.exception("Unknown error processing")
+
+        wrapped = {
+            "body": {
+                "status": "failure",
+                "error": "Unknown error",
+            },
+            "device": message.device,
+            "category": "reported_state_failure",
+            "timestamp": datetime.datetime.utcnow(),
+        }
+        response = Message.from_dict(wrapped)
+        response.send_to_device()
+
+        raise
+    else:
+        logger.info("successfully processed device reporting state update")
+
+        wrapped = {
+            "body": {
+                "status": "success",
+            },
+            "device": message.device,
+            "category": "reported_state_success",
+            "timestamp": datetime.datetime.utcnow(),
+        }
+        response = Message.from_dict(wrapped)
+        response.send_to_device()

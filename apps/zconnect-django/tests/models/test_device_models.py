@@ -1,18 +1,35 @@
 import datetime
+import itertools
+import logging
 from math import sin
+from unittest.mock import DEFAULT, Mock, patch
 
 from dateutil.relativedelta import relativedelta
 import django
+from django.db import IntegrityError
 from django.apps import apps
 from django.conf import settings
 import pytest
+from rest_framework import serializers
+from testfixtures import LogCapture
 
+from zconnect._messages.sender import Sender
 from zconnect._models.event import EventDefinition
 from zconnect.testutils.factories import (
-    DeviceFactory, DeviceSensorFactory, SensorTypeFactory, TimeSeriesDataFactory)
+    DeviceFactory, DeviceSensorFactory, DeviceStateFactory, SensorTypeFactory, TimeSeriesDataFactory)
+from zconnect.util import exceptions
 from zconnect.zc_timeseries.models import TimeSeriesData
 
 Device = apps.get_model(settings.ZCONNECT_DEVICE_MODEL)
+
+
+@pytest.fixture(name="sender_mock")
+def fix_sender_mock():
+    sender_mock = Mock(
+        spec=Sender,
+    )
+    with patch("zconnect._messages.message.get_sender", return_value=sender_mock):
+        yield sender_mock
 
 
 class TestDeviceModel:
@@ -276,3 +293,260 @@ class TestFetchImplementations:
 
         assert len(values) == 24
         assert values[-1].ts == now - relativedelta(seconds=3600)
+
+
+class TestGetDeviceState:
+
+    def test_get_latest_state_no_state(self, fakedevice):
+        """With no 'latest' state, desired and reported should be empty"""
+        latest_state = fakedevice.get_latest_state()
+
+        assert not latest_state.desired
+        assert not latest_state.reported
+        assert latest_state.version == 0
+
+    def test_add_device_state(self, fakedevice):
+        """Just create one and get it"""
+        first_state = fakedevice.get_latest_state()
+
+        assert not first_state.desired
+        assert not first_state.reported
+        assert first_state.version == 0
+
+        new_state = DeviceStateFactory(
+            device=fakedevice,
+            version=1,
+            desired={"a": "b"}
+        )
+
+        latest_state = fakedevice.get_latest_state()
+
+        assert latest_state.desired == new_state.desired
+        assert latest_state.reported == new_state.reported
+        assert latest_state.version == new_state.version
+
+
+class TestUpdateDeviceReportedState:
+
+    def test_update_reported_no_verify(self, fakedevice):
+        """fake a reported state update without verifying"""
+        new_state = {
+            "a": 123,
+        }
+        fakedevice.update_reported_state(new_state)
+
+        latest_state = fakedevice.get_latest_state()
+        assert latest_state.reported == new_state
+        # No desired state by the server, but the device has reported it's state
+        assert not latest_state.desired
+
+    def test_update_reported_verify_no_product_serializer(self, fakedevice):
+        """fake a reported state update
+
+        product has no serializer so it should validate anything"""
+        new_state = {
+            "a": 123,
+        }
+        fakedevice.update_reported_state(new_state, verify=True)
+
+        latest_state = fakedevice.get_latest_state()
+        assert latest_state.reported == new_state
+        # No desired state by the server, but the device has reported it's state
+        assert not latest_state.desired
+
+    def test_update_reported_verify_with_product_serializer_incorrect(self, fakeproduct, fakedevice):
+        """product has serializer but doesn't match our new state"""
+
+        class ProductSerializer(serializers.Serializer):
+            a_name = serializers.CharField()
+
+        fakeproduct.state_serializer_name = "test"
+        fakeproduct.save()
+
+        new_state = {
+            "a": 123,
+        }
+
+        with patch("zconnect._messages.schemas.import_callable", return_value=ProductSerializer):
+            with pytest.raises(exceptions.BadMessageSchemaError):
+                fakedevice.update_reported_state(new_state, verify=True)
+
+        latest_state = fakedevice.get_latest_state()
+        assert not latest_state.desired
+        assert not latest_state.reported
+
+    def test_update_reported_verify_with_product_serializer_correct(self, fakeproduct, fakedevice):
+        """product has serializer that matches state update"""
+
+        class ProductSerializer(serializers.Serializer):
+            tag = serializers.IntegerField()
+
+        fakeproduct.state_serializer_name = "test"
+        fakeproduct.save()
+
+        new_state = {
+            "tag": 123,
+        }
+
+        with patch("zconnect._messages.schemas.import_callable", return_value=ProductSerializer):
+            fakedevice.update_reported_state(new_state, verify=True)
+
+        latest_state = fakedevice.get_latest_state()
+        assert not latest_state.desired
+        assert latest_state.reported == new_state
+
+
+class TestUpdateDeviceDesiredState:
+
+    def test_update_desired_state(self, fakedevice, sender_mock):
+        """Updating device state results in the broker sending a message to the device"""
+        assert not fakedevice.get_latest_state().desired
+
+        new_state = {
+            "tag": 123,
+        }
+
+        fakedevice.update_desired_state(new_state, verify=False)
+
+        assert sender_mock.to_device.called_with("desired_state", new_state, fakedevice.id)
+        assert fakedevice.get_latest_state().desired == new_state
+
+    def test_update_desired_state_with_verify(self, fakeproduct, fakedevice, sender_mock):
+        """Updating device state results in the broker sending a message to the device"""
+        assert not fakedevice.get_latest_state().desired
+
+        class ProductSerializer(serializers.Serializer):
+            tag = serializers.IntegerField()
+
+        fakeproduct.state_serializer_name = "test"
+        fakeproduct.save()
+
+        new_state = {
+            "tag": 123,
+        }
+
+        with patch("zconnect._messages.schemas.import_callable", return_value=ProductSerializer):
+            fakedevice.update_desired_state(new_state)
+
+        assert sender_mock.to_device.called_with("desired_state", new_state, fakedevice.id)
+        assert fakedevice.get_latest_state().desired == new_state
+
+
+def yield_after_new_state(fakedevice, version, desired, reported={}):
+    """Creates a new devicestate model, then acts as range()"""
+    def inner(n):
+        DeviceStateFactory(
+            device=fakedevice,
+            version=version,
+            desired=desired,
+            reported=reported
+        )
+
+        for i in range(n):
+            yield i
+
+    return inner
+
+
+class TestRaceConditionRecovery:
+    """Make sure it can recover from the state changing mid-save"""
+
+    def test_no_change(self, fakedevice, sender_mock):
+        """State hasn't changed at all - should be fine"""
+        new_state = {
+            "tag": 123,
+        }
+
+        DeviceStateFactory(
+            device=fakedevice,
+            version=1,
+            desired=new_state,
+        )
+
+        chain = itertools.chain([IntegrityError], itertools.repeat(DEFAULT))
+
+        with patch("django.db.models.base.Model.save", side_effect=chain):
+            new_saved = fakedevice.update_desired_state(new_state, verify=False)
+
+        assert new_saved.desired == new_state
+
+    def test_reported_change_ignore(self, fakedevice, sender_mock):
+        """Reported state has changed, but we ignore it and hope it's handled
+        somewhere else"""
+        new_state = {
+            "tag": 123,
+        }
+
+        DeviceStateFactory(
+            device=fakedevice,
+            version=1,
+            desired=new_state,
+            reported={"a": 2},
+        )
+
+        with patch("zconnect._models.device.range", yield_after_new_state(fakedevice, 2, new_state, {"a": 3})):
+            # Captures just log messages
+            with LogCapture("zconnect._models.device", level=logging.DEBUG, attributes=["getMessage"]) as logcap:
+                new_saved = fakedevice.update_desired_state(new_state, verify=False)
+
+        assert new_saved.desired == new_state
+        logcap.check_present("reported state changed - ignoring")
+
+    def test_reported_change_error(self, fakedevice, sender_mock):
+        """Reported state has changed, and raise an error because of it"""
+        new_state = {
+            "tag": 123,
+        }
+
+        DeviceStateFactory(
+            device=fakedevice,
+            version=1,
+            desired=new_state,
+            reported={"a": 2},
+        )
+
+        with patch("zconnect._models.device.range", yield_after_new_state(fakedevice, 2, new_state, {"a": 3})):
+            with LogCapture("zconnect._models.device", level=logging.ERROR, attributes=["getMessage"]) as logcap:
+                with pytest.raises(exceptions.StateConflictError):
+                    fakedevice.update_desired_state(new_state, verify=False, error_on_reported_change=True)
+
+        logcap.check_present("State changed while trying to update it")
+
+    def test_desired_change_error(self, fakedevice, sender_mock):
+        """If desired state has changed, always error"""
+        new_state = {
+            "tag": 123,
+        }
+
+        DeviceStateFactory(
+            device=fakedevice,
+            version=1,
+            desired=new_state,
+        )
+
+        with patch("zconnect._models.device.range", yield_after_new_state(fakedevice, 2, {"sdof": "saa"})):
+            with LogCapture("zconnect._models.device", level=logging.ERROR, attributes=["getMessage"]) as logcap:
+                with pytest.raises(exceptions.StateConflictError):
+                    fakedevice.update_desired_state(new_state, verify=False)
+
+        logcap.check_present("desired state was updated somewhere else while trying to update it here")
+
+    def test_repeat_change_error(self, fakedevice, sender_mock):
+        """Every time we save it's been updated somewhere else - raise an error"""
+        new_state = {
+            "tag": 123,
+        }
+
+        DeviceStateFactory(
+            device=fakedevice,
+            version=1,
+            desired=new_state,
+        )
+
+        # devicestate doesn't override it, so patch the base save()
+        with patch("django.db.models.base.Model.save", side_effect=IntegrityError):
+            with LogCapture("zconnect._models.device", level=logging.ERROR, attributes=["getMessage"]) as logcap:
+                with pytest.raises(exceptions.StateConflictError):
+                    fakedevice.update_desired_state(new_state, verify=False)
+
+        logcap.check_present("Could not set new desired state after 3 attempts")

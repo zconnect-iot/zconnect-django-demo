@@ -1,5 +1,5 @@
 import abc
-from distutils.util import strtobool  # pylint: disable=no-name-in-module
+from distutils.util import strtobool  # pylint: disable=no-name-in-module,import-error
 from itertools import filterfalse
 import json
 import logging
@@ -57,6 +57,20 @@ User = apps.get_model(settings.AUTH_USER_MODEL)
 
 class AbstractStubbableModelViewSet(viewsets.ModelViewSet, metaclass=abc.ABCMeta):
 
+    """Abstract superclass for a viewset that will automatically parse the
+    'stub' query parameter and choose a different serializer to return a stub of
+    the model if it is truthy.
+
+    This expects a stub_serializer, normal_serializer, and create_serializer to
+    be set on the viewset. stub_serializer and normal_serializer are self
+    explanatory. create_serializer is used when 'stub=true' is passed and we are
+    trying to create a new instance of the object.
+
+    Todo:
+        Move attribute checks to __new__? This might cause some weird metaclass
+        issues
+    """
+
     def __init__(self, *args, **kwargs):
         try:
             assert issubclass(self.stub_serializer, serializers.ModelSerializer)
@@ -73,6 +87,11 @@ class AbstractStubbableModelViewSet(viewsets.ModelViewSet, metaclass=abc.ABCMeta
         super().__init__(*args, **kwargs)
 
     def get_serializer_class(self):
+        """Check which serializer to get based on the 'stub' query parameter.
+
+        Look at the documentation for strtobool to see which values are
+        considered 'truthy' for this parameter.
+        """
         is_stub = self.request.query_params.get("stub", None)
         if is_stub is not None:
             is_stub = strtobool(is_stub)
@@ -86,6 +105,18 @@ class AbstractStubbableModelViewSet(viewsets.ModelViewSet, metaclass=abc.ABCMeta
 
 
 class NestedViewSetMixinWithPermissions(NestedViewSetMixin):
+
+    """Override NestedViewSetMixin method to also filter based on parent
+    permissions
+
+    This provides an extension of drf-extensions' nested viewset mixin that will
+    first check to see if the user has permission to access a 'parent' object -
+    for example, when accessing a device's data, make sure the user has
+    permission to access the device as well.
+
+    Requires parent_viewset_class to be set on the viewset, which is used to
+    check permissions of the parent object.
+    """
 
     def __init__(self, *args, **kwargs):
         # Is this ever called?
@@ -120,11 +151,9 @@ class NestedViewSetMixinWithPermissions(NestedViewSetMixin):
         return list(self.get_parents_query_dict().values())[0]
 
     def get_parents_query_dict(self):
-        """Override NestedViewSetMixin method to also filter based on parent permissions
-
-        Initialise the parent viewset with the kwargs that are relevant only to
-        querying that queryset, using the same request (for permissions), then
-        look up the object. This will raise a 404/403 whatever if it fails.
+        """Initialise the parent viewset with the kwargs that are relevant only
+        to querying that queryset, using the same request (for permissions),
+        then look up the object. This will raise a 404/403 whatever if it fails.
         """
         from rest_framework_extensions.settings import extensions_api_settings
         vs = self.get_parent_viewset()
@@ -255,14 +284,6 @@ class OrgMembershipByUserViewSet(NestedViewSetMixinWithPermissions,
                                  mixins.DestroyModelMixin,
                                  mixins.ListModelMixin,
                                  viewsets.GenericViewSet):
-    """Can create/get/delete but not modify an existing membership. That seems
-    like it might get confusing and has no real semantic use (eg, changing a
-    membership to refer to a different user is a bit pointless when you could
-    just create a new one)
-
-    Need to manually override perform_create() because it needs to be done in a
-    special way
-    """
     queryset = OrganizationUser.objects.all().order_by("user")
     serializer_class = OrganizationMembershipSerializer
     permission_classes = [IsAuthenticated,]
@@ -341,7 +362,7 @@ class EventDefinitionViewSet(NestedViewSetMixinWithPermissions, viewsets.ModelVi
         request.data.update({"device": self.get_parent_object().id})
         return super().create(request, *args, **kwargs)
 
-    def perform_destroy(self, request, *args, **kwargs):
+    def perform_destroy(self, instance):
         event_def = self.get_object()
         event_def.deleted = True
         event_def.save()
@@ -456,16 +477,24 @@ class TokenRefreshSlidingView(TokenViewBase):
 
 class StackSamplerView(views.APIView):
 
+    """Basic viewset to get stack sampler data (if enabled)
+    """
+
     permission_classes = []
     renderer_classes = [renderers.StaticHTMLRenderer]
 
     @classmethod
-    def as_view(cls, *args, **kwargs):
+    def as_view(cls, **kwargs):
+        """Enable the sample and create the viewset
+
+        This needs to be done here because it should only be called once, at the
+        beginning of the program.
+        """
         if settings.ENABLE_STACKSAMPLER:
             cls.sampler = Sampler()
             cls.sampler.start()
 
-        return super().as_view(*args, **kwargs)
+        return super().as_view(**kwargs)
 
     def get(self, request, *args, **kwargs):
         if not settings.ENABLE_STACKSAMPLER:

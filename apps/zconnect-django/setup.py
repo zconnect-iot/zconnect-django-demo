@@ -14,6 +14,7 @@ TESTS_REQUIRE = [
     "freezegun",
     "colorlog",
     "mockredispy",
+    "testfixtures",
 ]
 
 

@@ -6,12 +6,21 @@ from django.conf import settings
 from django.db import models
 import rules
 
-
 logger = logging.getLogger(__name__)
 
 
 @rules.predicate
 def can_view_device(user, obj):
+    """Check that a user is in the same organization as the Device
+
+    Args:
+        user (User): User to check permissions for
+        obj (Device): Device to check organizations
+
+    Returns:
+        bool: If the user has any organizations in common with the Device, or is
+            a superuser
+    """
     if user.is_superuser:
         logger.debug("Superuser can access any device")
         return True

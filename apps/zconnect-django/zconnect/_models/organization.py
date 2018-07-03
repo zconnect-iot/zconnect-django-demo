@@ -36,7 +36,3 @@ class LogoImage(models.Model):
     bytes = models.TextField()
     filename = models.CharField(max_length=255)
     mimetype = models.CharField(max_length=50)
-
-# NOTE: when switching from database storage to google cloud, remove the
-# LogoImage class and replace the ImageField with something like:
-# image = models.ImageField(upload_to='org_images', blank=True, null=True)
