@@ -28,7 +28,7 @@ ZCONNECT_SETTINGS = {
         "type": "shared",
 
         "broker-url": "vernemq",
-        "full_client_id": "g:abcdef:sender:124",
+        "full_client_id": "g:abcdef:sender:123",
         "id": "test_sender",
         "disable-tls": True,
         "port": 1883,

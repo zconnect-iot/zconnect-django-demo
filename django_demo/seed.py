@@ -28,20 +28,66 @@ def seed_data():
         product=product,
     )
 
+    low_temp_boundary = 4
     EventDefinitionFactory(
         product=product,
         ref="low box temp",
-        condition="process_box_temp<10", #TODO CHANGE BACK TO 4
+        condition="process_box_temp<{}".format(low_temp_boundary),
         actions={
             "activity" : {
                 "verb": "reported",
-                "description": "Fridge temp is too cold. Less than 4°C",
+                "description": "Fridge temp is too cold. Less than {}°C".format(low_temp_boundary),
                 "severity": 20,
                 "category": "business metrics",
                 "notify": True
             },
         },
-        debounce_window=300, # very short debounce!
+        debounce_window=1, # very short debounce!
+    )
+    EventDefinitionFactory(
+        product=product,
+        ref="door opened",
+        condition="property_door_opened==1",
+        actions={
+            "activity" : {
+                "verb": "reported",
+                "description": "Fridge door has been opened",
+                "severity": 20,
+                "category": "business metrics",
+                "notify": True
+            },
+        },
+        debounce_window=1, # very short debounce!
+    )
+    EventDefinitionFactory(
+        product=product,
+        ref="door opened",
+        condition="property_cold_pipe_leak==1",
+        actions={
+            "activity" : {
+                "verb": "reported",
+                "description": "Fresh cooling liquid pipe is leaking",
+                "severity": 20,
+                "category": "business metrics",
+                "notify": True
+            },
+        },
+        debounce_window=1, # very short debounce!
+    )
+    EventDefinitionFactory(
+        product=product,
+        ref="door opened",
+        condition="property_hot_pipe_leak==1",
+        actions={
+            "activity" : {
+                "verb": "reported",
+                "description": "Used cooling liquid pipe leaking",
+                "severity": 20,
+                "category": "business metrics",
+                "notify": True
+            },
+        },
+        debounce_window=1, # very short debounce!
     )
 
     sensor_types = []
@@ -144,7 +190,7 @@ def seed_data():
         first_name="bart",
         last_name="simpson",
     )
-    
+
     admin.add_org(fake_org)
 
 
