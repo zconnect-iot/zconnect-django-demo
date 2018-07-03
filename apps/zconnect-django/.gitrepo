@@ -6,7 +6,7 @@
 [subrepo]
 	remote = git@code.zoetrope.io:zconnect/zconnect-django.git
 	branch = master
-	commit = 1fd63d757d2cf7f897520ce237e15bc52a6b2335
-	parent = fb0399978f36a9b352f92bb2a32697b035475087
+	commit = 5d8945c32e3723a85fac732dd7bdd2fab921a353
+	parent = eb4cd56fe5c19a0260eb05858c13827c85768163
 	method = merge
 	cmdver = 0.4.0
