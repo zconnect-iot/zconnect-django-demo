@@ -6,7 +6,7 @@
 [subrepo]
 	remote = https://github.com/zconnect-iot/zconnect-django
 	branch = master
-	commit = 75b665e836dee2128fd69b23393a0035b61603eb
-	parent = 0f012db58cbf04cf7762e420a70d2619aad6c44b
+	commit = a6b301c37e1bad8d0363841dbca106ffa2ccd2cf
+	parent = 5dfdaeb8f1889ac64e5ef7de59d6952037a2b3ec
 	method = merge
 	cmdver = 0.4.0
