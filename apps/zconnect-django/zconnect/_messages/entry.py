@@ -3,8 +3,11 @@
 This should not be imported other than to start the listener, because it monkey
 patches gevent and starts the event loop etc.
 """
-from gevent import monkey
-monkey.patch_all()
+#from gevent import monkey
+#monkey.patch_all()
+
+from psycogreen.gevent import patch_psycopg
+patch_psycopg()
 
 # pylint: disable=wrong-import-position
 import django

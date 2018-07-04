@@ -171,7 +171,6 @@ def fix_timeseries_user(db):
     norm.user_permissions.add(perm)
     return norm
 
-
 @pytest.fixture(name="timeseries_user_login")
 def fix_timeseries_user_login(timeseries_user, testclient):
     """
@@ -179,6 +178,28 @@ def fix_timeseries_user_login(timeseries_user, testclient):
     the timeseries permission
     """
     testclient.login(timeseries_user.username, "timeseries_password")
+
+@pytest.fixture(name="app_interface_user")
+def fix_app_interface_user(db):
+    password = "app_interface_user"
+    norm = UserFactory(
+        email="app_interface@zoetrope.io",
+        username="app_interface@zoetrope.io",
+        password=make_password(password),
+        is_superuser=False,
+        is_staff=False,
+    )
+    perm = Permission.objects.get(codename='app_interface')
+    norm.user_permissions.add(perm)
+    return norm
+
+@pytest.fixture(name="app_interface_user_login")
+def fix_app_interface_user_login(app_interface_user, testclient):
+    """
+    Make all requests using this fixture be logged in as a normal user with
+    the timeseries permission
+    """
+    testclient.login(app_interface_user.username, "app_interface_user")
 
 @pytest.fixture(name="fakelocation")
 def fix_fakelocation(db):

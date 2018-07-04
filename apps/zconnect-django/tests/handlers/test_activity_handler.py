@@ -43,7 +43,7 @@ class TestActivityHandler:
         assert parental_depths == [0, 0, 0, 0, 1, 1, 1, 2, 2, 3]
 
     @pytest.mark.xfail(reason="Depends on RTR specific behaviour. see rtr_django/tests/handlers/test_rtr_activities.py")
-    def test_activity_handler_creates_action_and_emails(self, joeseed, fake_device_event_def_activity, fake_site_subsription, simple_ts_data):
+    def test_activity_handler_creates_action_and_emails(self, joeseed, fake_device_event_def_activity, fake_space_subsription, simple_ts_data):
         """ Test that activity_stream_handler creates a new action and only
         calls email handler """
         (fakedevice, event_def) = fake_device_event_def_activity
@@ -55,7 +55,7 @@ class TestActivityHandler:
             activity_stream_handler(message, action_args=action_args)
 
         new_action = Action.objects.all()[0]
-        org = fake_site_subsription.organization
+        org = fake_space_subsription.organization
         # Due to a limitation in factory boy need to convert to organization
         # class manually which is the class that django uses
         org.__class__ = Organization

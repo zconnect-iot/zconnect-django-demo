@@ -107,3 +107,18 @@ class IsAdminOrTimeseriesIngress(permissions.BasePermission):
                 request.user.has_perm('zconnect.can_create_timeseries_http')
             )
         )
+
+
+class IsAdminOrAppInterface(permissions.BasePermission):
+    message = "Only admins or users with app_interface write permissions can use app endpoints."
+
+    def has_permission(self, request, view):
+        return (
+            request.user and
+            request.user.is_authenticated and
+            request.method == 'POST' and
+            (
+                request.user.is_superuser or
+                request.user.has_perm('zconnect.app_interface')
+            )
+        )
