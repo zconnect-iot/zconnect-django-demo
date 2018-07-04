@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/git-commands/git-subrepo#readme
+;
+[subrepo]
+	remote = https://github.com/zconnect-iot/zconnect-django
+	branch = master
+	commit = 75b665e836dee2128fd69b23393a0035b61603eb
+	parent = 0f012db58cbf04cf7762e420a70d2619aad6c44b
+	method = merge
+	cmdver = 0.4.0
