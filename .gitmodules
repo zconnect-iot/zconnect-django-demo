@@ -1,0 +1,3 @@
+[submodule "apps/zconnect-django"]
+	path = apps/zconnect-django
+	url = git@github.com:zconnect-iot/zconnect-django.git
