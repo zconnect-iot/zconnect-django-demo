@@ -1,4 +1,8 @@
-# Starting from scratch
+# zconnect-django-demo
+
+`zconnect-django-demo` this is an example django application which uses `zconnect-django`, to see this as a part of a whole zconnect system please see https://github.com/zconnect-iot/demo-virtual-docker-compose
+
+## Starting from scratch
 
 1. `pip3 install --user pipenv` (if you don't already have it)
 2. `pipenv install --dev`
@@ -23,17 +27,10 @@ changes.
 This data is also used in the `fix_Demo_ts_data` fixture, for example in the
 dashboard endpoint tests.
 
-## v1 import
-To import v1 timeseries data (along with product, sensors, groups, devices, and
-device sensors) run command:
-`./manage.py v1_import`
-There have been cases where the mongo command to export data from the v1
-database does not work, if this is the case add the flag `--kwak` to execute the
-mongo command from kwak.
-
-To remove when this is no longer needed:
-- Paramiko dependency
-- v1 import command
+By default it will only seed the database 'once', which means if it finds the
+admin user already there it won't seed anything else. If you need to add more
+seed data, do `docker volume prune` to delete all the old volumes and then run
+the instructions above again
 
 ## Running celerybeat
 
@@ -49,21 +46,6 @@ However, the development settings set `CELERY_TASK_ALWAYS_EAGER` to `True` which
 means that when running these commands locally, the `worker` will never recieve
 the tasks. Instead, the `beat` will execute the tasks synchronously.
 
-# Using docker compose with postgres
-
-1. `docker-compose -f docker-compose-postgres.yaml build`
-2. `docker-compose -f docker-compose-postgres.yaml up database`
-3. In another terminal: `./deploy/init_postgres.sh` (You will need a postgres client installed, e.g. `sudo apt-get install postgresql-client`)
-4. Stop docker-compose
-5. `docker-compose -f docker-compose-postgres.yaml up`
-
-## Seeding
-
-By default it will only seed the database 'once', which means if it finds the
-admin user already there it won't seed anything else. If you need to add more
-seed data, do `docker volume prune` to delete all the old volumes and then run
-the instructions above again
-
 # Documentation
 
 1. Go into virtualenv with all dev requirements installed
@@ -73,10 +55,6 @@ the instructions above again
 The documentation will be output in the `build/html` folder.
 
 # Tests
-## Integration tests
-
-1. `docker-compose -f docker-compose-tavern.yaml build`
-2. `docker-compose -f docker-compose-tavern.yaml run tavern`
 
 ## Running unit tests
 
@@ -92,38 +70,3 @@ To recreate the linting that happens in GitLab CI, run `./lint.sh`. Aim to do th
 
 You can also run `./pylint.sh` for just pylint.
 
-# Connecting to the database
-The postgresql database is hosted on google cloud.
-
-To connect directly requires quite a few private keys etc, which you probably don't want to be storing on your computer.
-To avoid this, we use google's cloud-sql-proxy.
-
-This requires installing `cloud-sql-proxy` and `google-cloud-sdk` as per the documentation:
-
-https://cloud.google.com/sql/docs/mysql/sql-proxy#install
-
-https://cloud.google.com/sdk/downloads
-
-Once installed, you'll need to login to the cloud sdk with the following commands:
-
-```
-gcloud auth application-default login
-```
-
-This will open a browser window where you can authenticate. Use the google account that has access to the google cloud project.
-
-Then set the project using:
-
-```
-gcloud config set project zconnect-201710
-```
-
-You can then attempt to connect to the google cloud sql proxy instance:
-
-```
-cloud-sql-proxy -instances=zconnect-201710:europe-west2:demo-integration-postgres=tcp:15432
-```
-
-Here we are creating a proxy on port 15432. Unix sockets can also be used, however there is a path length restriction in some clients which is difficult to work with.
-
-You can then connect to `localhost:15432` with a postgresql client e.g. pgadmin4 using a valid username and password for the postgres db.
