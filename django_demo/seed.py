@@ -1,9 +1,6 @@
-import datetime
-from datetime import timedelta
 import logging
 import os
 
-from actstream import action as action_model
 import django
 from django.apps import apps
 from django.conf import settings
@@ -13,10 +10,9 @@ logger = logging.getLogger(__name__)
 
 
 def seed_data():
-    from zconnect.zc_timeseries.models import TimeSeriesData
     from zconnect.testutils.factories import (
         UserFactory, DeviceSensorFactory, SensorTypeFactory,
-        DeviceFactory, ProductPreprocessorsFactory, ProductTagsFactory,
+        DeviceFactory, ProductTagsFactory,
         EventDefinitionFactory, BilledOrganizationFactory,
     )
     from django_demo.testutils.factories import FridgeFactory

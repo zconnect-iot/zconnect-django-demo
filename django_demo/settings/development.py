@@ -4,7 +4,6 @@ import os
 from os.path import abspath, dirname, join
 
 import yaml
-import uuid
 
 # project imports
 from .common import *

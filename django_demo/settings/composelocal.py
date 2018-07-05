@@ -1,7 +1,5 @@
 #pylint: disable=unused-wildcard-import, wildcard-import
 
-import uuid
-
 from .development import *
 
 # ##### DATABASE CONFIGURATION ############################
